@@ -1,0 +1,10 @@
+ultralytics
+ffmpeg-python
+scipy
+scikit-learn
+tqdm
+scenedetect
+opencv-python
+python_speech_features
+gdown
+youtube-dl

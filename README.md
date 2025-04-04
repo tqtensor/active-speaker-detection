@@ -7,7 +7,7 @@ A full pipeline to detect and highlight active speakers in videos using YOLO for
 ## 📁 Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/active-speaker-detection.git
+git clone https://github.com/MjdMahasneh/active-speaker-detection.git
 cd active-speaker-detection
 ```
 
