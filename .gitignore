@@ -1,14 +1,8 @@
 # Other files
-*.model
-*.pth
 *.wav
 *.mp4
-*.txt
 *.pcm
-data/
-tests/
-exps/
-demo/*
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
