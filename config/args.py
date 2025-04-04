@@ -29,7 +29,7 @@ def get_args():
                         help='The duration of the video, when set as 0, will extract the whole video')
     parser.add_argument('--speakerThresh', type=float, default=0.6,
                         help='speaker detection threshold')
-    parser.add_argument('--ignoreMultiSpeakers', type=bool, default=False,
+    parser.add_argument('--ignoreMultiSpeakers', type=bool, default=True,
                         help='ignores segments with multiple speakers')
     parser.add_argument('--minSpeechLen', type=float, default=0.25,
                         help='minimum speech length to be considered as a speaker')
