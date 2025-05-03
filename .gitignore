@@ -2,6 +2,11 @@
 *.wav
 *.mp4
 *.pcm
+*.avi
+
+# Dirs
+workdir/
+.idea/
 
 
 # Byte-compiled / optimized / DLL files
