@@ -42,6 +42,8 @@ pip install -r requirements.txt
 
 ## ▶️ Run
 
+To run the pipeline, modify configurations in `./config/args.py` and then run `main.py`. Alternatively, you can run the script directly with command line arguments.
+
 ```bash
 python main.py --videoName video --videoFolder workdir
 ```
@@ -84,10 +86,10 @@ workdir/
 ## 🔧 Improvements Made
 
 - Added `--minSpeechLen` to filter out short/non-speech segments.
+- Added `--ignoreMultiSpeakers` to ignore segments with multiple speakers.
 - Skipped interpolation when face detections have no frame gaps, improving efficiency for continuous tracks.
 - Applied weighted averaging across multi-duration inputs instead of repeating inference.
 - Added `get_speaker_track_indices()` to isolate actual speaker tracks.
-
 ---
 
 
