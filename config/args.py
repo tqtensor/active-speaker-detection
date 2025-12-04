@@ -33,5 +33,7 @@ def get_args():
                         help='ignores segments with multiple speakers')
     parser.add_argument('--minSpeechLen', type=float, default=0.25,
                         help='minimum speech length to be considered as a speaker')
+    parser.add_argument('--yoloBatchSize', type=int, default=32,
+                        help='Batch size for YOLO face detection (increase for more GPU utilization)')
 
     return parser.parse_args()
