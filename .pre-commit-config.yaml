@@ -1,0 +1,36 @@
+---
+repos:
+    - repo: https://github.com/pycqa/isort
+      rev: 7.0.0
+      hooks:
+          - id: isort
+            args: [--profile, black, --filter-files]
+    - repo: https://github.com/astral-sh/ruff-pre-commit
+      rev: v0.14.8
+      hooks:
+          - id: ruff
+            args: [--fix]
+            types_or: [python, pyi]
+          - id: ruff-format
+            types_or: [python, pyi]
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v6.0.0
+      hooks:
+          - id: check-json
+            exclude: (^.vscode/|^.specify/)
+          - id: pretty-format-json
+            exclude: (^.vscode/|^.specify/)
+            args:
+                - --autofix
+                - --indent
+                - '2'
+          - id: end-of-file-fixer
+            exclude_types: [python, pyi]
+          - id: trailing-whitespace
+            exclude: (.yaml)
+            exclude_types: [python, pyi]
+    - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
+      rev: 0.2.3
+      hooks:
+          - id: yamlfmt
+            args: [--preserve-quotes]

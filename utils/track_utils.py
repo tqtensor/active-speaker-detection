@@ -1,17 +1,18 @@
-import os
-import sys
 import glob
+import os
 import pickle
+import sys
+
 import cv2
-import numpy
 import ffmpeg
-from scipy import signal
-from scipy.io import wavfile
-from scipy.interpolate import interp1d
-from scenedetect.video_manager import VideoManager
+import numpy
+from scenedetect.detectors import ContentDetector
 from scenedetect.scene_manager import SceneManager
 from scenedetect.stats_manager import StatsManager
-from scenedetect.detectors import ContentDetector
+from scenedetect.video_manager import VideoManager
+from scipy import signal
+from scipy.interpolate import interp1d
+from scipy.io import wavfile
 
 
 def scene_detect(args):
@@ -27,12 +28,16 @@ def scene_detect(args):
     videoManager.start()
     sceneManager.detect_scenes(frame_source=videoManager)
     sceneList = sceneManager.get_scene_list(baseTimecode)
-    savePath = os.path.join(args.pyworkPath, 'scene.pckl')
+    savePath = os.path.join(args.pyworkPath, "scene.pckl")
     if sceneList == []:
-        sceneList = [(videoManager.get_base_timecode(), videoManager.get_current_timecode())]
-    with open(savePath, 'wb') as fil:
+        sceneList = [
+            (videoManager.get_base_timecode(), videoManager.get_current_timecode())
+        ]
+    with open(savePath, "wb") as fil:
         pickle.dump(sceneList, fil)
-        sys.stderr.write('%s - scenes detected %d\n' % (args.videoFilePath, len(sceneList)))
+        sys.stderr.write(
+            "%s - scenes detected %d\n" % (args.videoFilePath, len(sceneList))
+        )
     return sceneList
 
 
@@ -45,7 +50,7 @@ def bb_intersection_over_union(boxA, boxB, evalCol=False):
     interArea = max(0, xB - xA) * max(0, yB - yA)
     boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
     boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
-    if evalCol == True:
+    if evalCol:
         iou = interArea / float(boxAArea)
     else:
         iou = interArea / float(boxAArea + boxBArea - interArea)
@@ -64,8 +69,8 @@ def track_shot(args, sceneFaces):
                     track.append(face)
                     frameFaces.remove(face)
                 # find distance between the last registered face (track[-1]) and the current face.
-                elif face['frame'] - track[-1]['frame'] <= args.numFailedDet:
-                    iou = bb_intersection_over_union(face['bbox'], track[-1]['bbox'])
+                elif face["frame"] - track[-1]["frame"] <= args.numFailedDet:
+                    iou = bb_intersection_over_union(face["bbox"], track[-1]["bbox"])
                     if iou > iouThres:
                         track.append(face)
                         frameFaces.remove(face)
@@ -75,8 +80,8 @@ def track_shot(args, sceneFaces):
         if track == []:
             break
         elif len(track) > args.minTrack:
-            frameNum = numpy.array([f['frame'] for f in track])
-            bboxes = numpy.array([numpy.array(f['bbox']) for f in track])
+            frameNum = numpy.array([f["frame"] for f in track])
+            bboxes = numpy.array([numpy.array(f["bbox"]) for f in track])
             frameI = numpy.arange(frameNum[0], frameNum[-1] + 1)
 
             ## check if frameI length is equal to frameNum length (e.g. no gaps), then no need to interpolate. More efficient.
@@ -90,51 +95,67 @@ def track_shot(args, sceneFaces):
                     bboxesI.append(interpfn(frameI))
                 bboxesI = numpy.stack(bboxesI, axis=1)
 
-            if max(numpy.mean(bboxesI[:, 2] - bboxesI[:, 0]),
-                   numpy.mean(bboxesI[:, 3] - bboxesI[:, 1])) > args.minFaceSize:
-                tracks.append({'frame': frameI, 'bbox': bboxesI})
+            if (
+                max(
+                    numpy.mean(bboxesI[:, 2] - bboxesI[:, 0]),
+                    numpy.mean(bboxesI[:, 3] - bboxesI[:, 1]),
+                )
+                > args.minFaceSize
+            ):
+                tracks.append({"frame": frameI, "bbox": bboxesI})
     return tracks
 
 
 def crop_video(args, track, cropFile):
     # CPU: crop the face clips
-    flist = glob.glob(os.path.join(args.pyframesPath, '*.jpg'))  # Read the frames
+    flist = glob.glob(os.path.join(args.pyframesPath, "*.jpg"))  # Read the frames
     flist.sort()
-    vOut = cv2.VideoWriter(cropFile + 't.avi', cv2.VideoWriter_fourcc(*'XVID'), 25, (224, 224))  # Write video
-    dets = {'x': [], 'y': [], 's': []}
-    for det in track['bbox']:  # Read the tracks
-        dets['s'].append(max((det[3] - det[1]), (det[2] - det[0])) / 2)
-        dets['y'].append((det[1] + det[3]) / 2)  # crop center x
-        dets['x'].append((det[0] + det[2]) / 2)  # crop center y
-    dets['s'] = signal.medfilt(dets['s'], kernel_size=13)  # Smooth detections
-    dets['x'] = signal.medfilt(dets['x'], kernel_size=13)
-    dets['y'] = signal.medfilt(dets['y'], kernel_size=13)
-    for fidx, frame in enumerate(track['frame']):
+    vOut = cv2.VideoWriter(
+        cropFile + "t.avi", cv2.VideoWriter_fourcc(*"XVID"), 25, (224, 224)
+    )  # Write video
+    dets = {"x": [], "y": [], "s": []}
+    for det in track["bbox"]:  # Read the tracks
+        dets["s"].append(max((det[3] - det[1]), (det[2] - det[0])) / 2)
+        dets["y"].append((det[1] + det[3]) / 2)  # crop center x
+        dets["x"].append((det[0] + det[2]) / 2)  # crop center y
+    dets["s"] = signal.medfilt(dets["s"], kernel_size=13)  # Smooth detections
+    dets["x"] = signal.medfilt(dets["x"], kernel_size=13)
+    dets["y"] = signal.medfilt(dets["y"], kernel_size=13)
+    for fidx, frame in enumerate(track["frame"]):
         cs = args.cropScale
-        bs = dets['s'][fidx]  # Detection box size
+        bs = dets["s"][fidx]  # Detection box size
         bsi = int(bs * (1 + 2 * cs))  # Pad videos by this amount
         image = cv2.imread(flist[frame])
-        frame = numpy.pad(image, ((bsi, bsi), (bsi, bsi), (0, 0)), 'constant', constant_values=(110, 110))
-        my = dets['y'][fidx] + bsi  # BBox center Y
-        mx = dets['x'][fidx] + bsi  # BBox center X
-        face = frame[int(my - bs):int(my + bs * (1 + 2 * cs)), int(mx - bs * (1 + cs)):int(mx + bs * (1 + cs))]
+        frame = numpy.pad(
+            image,
+            ((bsi, bsi), (bsi, bsi), (0, 0)),
+            "constant",
+            constant_values=(110, 110),
+        )
+        my = dets["y"][fidx] + bsi  # BBox center Y
+        mx = dets["x"][fidx] + bsi  # BBox center X
+        face = frame[
+            int(my - bs) : int(my + bs * (1 + 2 * cs)),
+            int(mx - bs * (1 + cs)) : int(mx + bs * (1 + cs)),
+        ]
         vOut.write(cv2.resize(face, (224, 224)))
-    audioTmp = cropFile + '.wav'
-    audioStart = (track['frame'][0]) / 25
-    audioEnd = (track['frame'][-1] + 1) / 25
+    audioTmp = cropFile + ".wav"
+    audioStart = (track["frame"][0]) / 25
+    audioEnd = (track["frame"][-1] + 1) / 25
     vOut.release()
 
     (
-        ffmpeg
-        .input(args.audioFilePath, ss=audioStart, to=audioEnd)  # Load input audio and trim from start to end
+        ffmpeg.input(
+            args.audioFilePath, ss=audioStart, to=audioEnd
+        )  # Load input audio and trim from start to end
         .output(
             audioTmp,  # Output file path
             ac=1,  # Set audio channels to mono
             vn=None,  # Disable video stream
-            acodec='pcm_s16le',  # Set audio codec to 16-bit PCM
+            acodec="pcm_s16le",  # Set audio codec to 16-bit PCM
             ar=16000,  # Resample audio to 16 kHz
             threads=args.nDataLoaderThread,  # Use specified number of threads
-            loglevel='panic'  # Suppress ffmpeg logs
+            loglevel="panic",  # Suppress ffmpeg logs
         )
         .overwrite_output()  # Allow overwriting the output file if it exists
         .run()  # Execute the command
@@ -143,17 +164,16 @@ def crop_video(args, track, cropFile):
     _, audio = wavfile.read(audioTmp)
 
     (
-        ffmpeg
-        .output(
+        ffmpeg.output(
             ffmpeg.input(f"{cropFile}t.avi"),  # Input video file
             ffmpeg.input(audioTmp),  # Input audio file
             f"{cropFile}.avi",  # Output file path
-            c='copy',  # Copy codec (no re-encoding)
+            c="copy",  # Copy codec (no re-encoding)
             threads=args.nDataLoaderThread,  # Use specified number of threads
-            loglevel='panic'  # Suppress ffmpeg logs
+            loglevel="panic",  # Suppress ffmpeg logs
         )
         .overwrite_output()
         .run()
     )
-    os.remove(cropFile + 't.avi')
-    return {'track': track, 'proc_track': dets}
+    os.remove(cropFile + "t.avi")
+    return {"track": track, "proc_track": dets}
