@@ -8,7 +8,6 @@ from shutil import rmtree
 
 import tqdm
 
-# Local imports
 from config.args import get_args
 from model.yoloFace import run_face_detection
 from utils.helpers import summarize_tracks, visualization
@@ -16,14 +15,20 @@ from utils.inference_utils import evaluate_network, get_speaker_track_indices
 from utils.track_utils import crop_video, scene_detect, track_shot
 from utils.video_utils import extract_audio, extract_frames, extract_video
 
+warnings.filterwarnings("ignore")
+
 
 def crop_video_worker(params):
-    """Worker function for parallel crop_video processing"""
+    """Executes crop_video for parallel processing.
+
+    Args:
+        params: Tuple of (args, track, crop_path) for crop_video call.
+
+    Returns:
+        Result from crop_video function.
+    """
     args, track, crop_path = params
     return crop_video(args, track, crop_path)
-
-
-warnings.filterwarnings("ignore")
 
 
 def download_weights(args):

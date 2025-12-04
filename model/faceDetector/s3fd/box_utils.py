@@ -5,9 +5,10 @@ import torch
 
 
 def nms_(dets, thresh):
-    """
-    Courtesy of Ross Girshick
-    [https://github.com/rbgirshick/py-faster-rcnn/blob/master/lib/nms/py_cpu_nms.py]
+    """Applies non-maximum suppression (CPU implementation).
+
+    Courtesy of Ross Girshick:
+    https://github.com/rbgirshick/py-faster-rcnn/blob/master/lib/nms/py_cpu_nms.py
     """
     x1 = dets[:, 0]
     y1 = dets[:, 1]
@@ -39,16 +40,17 @@ def nms_(dets, thresh):
 
 
 def decode(loc, priors, variances):
-    """Decode locations from predictions using priors to undo
-    the encoding we did for offset regression at train time.
+    """Decodes locations from predictions using priors.
+
+    Reverses the encoding applied for offset regression at train time.
+
     Args:
-        loc (tensor): location predictions for loc layers,
-            Shape: [num_priors,4]
-        priors (tensor): Prior boxes in center-offset form.
-            Shape: [num_priors,4].
-        variances: (list[float]) Variances of priorboxes
-    Return:
-        decoded bounding box predictions
+        loc: Location predictions for loc layers. Shape: [num_priors, 4].
+        priors: Prior boxes in center-offset form. Shape: [num_priors, 4].
+        variances: Variances of priorboxes.
+
+    Returns:
+        torch.Tensor: Decoded bounding box predictions.
     """
 
     boxes = torch.cat(
@@ -64,15 +66,18 @@ def decode(loc, priors, variances):
 
 
 def nms(boxes, scores, overlap=0.5, top_k=200):
-    """Apply non-maximum suppression at test time to avoid detecting too many
-    overlapping bounding boxes for a given object.
+    """Applies non-maximum suppression at test time.
+
+    Prevents detecting too many overlapping bounding boxes for a given object.
+
     Args:
-        boxes: (tensor) The location preds for the img, Shape: [num_priors,4].
-        scores: (tensor) The class predscores for the img, Shape:[num_priors].
-        overlap: (float) The overlap thresh for suppressing unnecessary boxes.
-        top_k: (int) The Maximum number of box preds to consider.
-    Return:
-        The indices of the kept boxes with respect to num_priors.
+        boxes: The location preds for the img. Shape: [num_priors, 4].
+        scores: The class pred scores for the img. Shape: [num_priors].
+        overlap: The overlap thresh for suppressing unnecessary boxes.
+        top_k: The maximum number of box preds to consider.
+
+    Returns:
+        tuple: (keep, count) - The indices of kept boxes and their count.
     """
 
     keep = scores.new(scores.size(0)).zero_().long()
