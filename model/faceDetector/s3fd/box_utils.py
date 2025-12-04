@@ -1,13 +1,14 @@
-import numpy as np
 from itertools import product as product
+
+import numpy as np
 import torch
-from torch.autograd import Function
 
 
 def nms_(dets, thresh):
-    """
-    Courtesy of Ross Girshick
-    [https://github.com/rbgirshick/py-faster-rcnn/blob/master/lib/nms/py_cpu_nms.py]
+    """Applies non-maximum suppression (CPU implementation).
+
+    Courtesy of Ross Girshick:
+    https://github.com/rbgirshick/py-faster-rcnn/blob/master/lib/nms/py_cpu_nms.py
     """
     x1 = dets[:, 0]
     y1 = dets[:, 1]
@@ -39,36 +40,44 @@ def nms_(dets, thresh):
 
 
 def decode(loc, priors, variances):
-    """Decode locations from predictions using priors to undo
-    the encoding we did for offset regression at train time.
+    """Decodes locations from predictions using priors.
+
+    Reverses the encoding applied for offset regression at train time.
+
     Args:
-        loc (tensor): location predictions for loc layers,
-            Shape: [num_priors,4]
-        priors (tensor): Prior boxes in center-offset form.
-            Shape: [num_priors,4].
-        variances: (list[float]) Variances of priorboxes
-    Return:
-        decoded bounding box predictions
+        loc: Location predictions for loc layers. Shape: [num_priors, 4].
+        priors: Prior boxes in center-offset form. Shape: [num_priors, 4].
+        variances: Variances of priorboxes.
+
+    Returns:
+        torch.Tensor: Decoded bounding box predictions.
     """
 
-    boxes = torch.cat((
-        priors[:, :2] + loc[:, :2] * variances[0] * priors[:, 2:],
-        priors[:, 2:] * torch.exp(loc[:, 2:] * variances[1])), 1)
+    boxes = torch.cat(
+        (
+            priors[:, :2] + loc[:, :2] * variances[0] * priors[:, 2:],
+            priors[:, 2:] * torch.exp(loc[:, 2:] * variances[1]),
+        ),
+        1,
+    )
     boxes[:, :2] -= boxes[:, 2:] / 2
     boxes[:, 2:] += boxes[:, :2]
     return boxes
 
 
 def nms(boxes, scores, overlap=0.5, top_k=200):
-    """Apply non-maximum suppression at test time to avoid detecting too many
-    overlapping bounding boxes for a given object.
+    """Applies non-maximum suppression at test time.
+
+    Prevents detecting too many overlapping bounding boxes for a given object.
+
     Args:
-        boxes: (tensor) The location preds for the img, Shape: [num_priors,4].
-        scores: (tensor) The class predscores for the img, Shape:[num_priors].
-        overlap: (float) The overlap thresh for suppressing unnecessary boxes.
-        top_k: (int) The Maximum number of box preds to consider.
-    Return:
-        The indices of the kept boxes with respect to num_priors.
+        boxes: The location preds for the img. Shape: [num_priors, 4].
+        scores: The class pred scores for the img. Shape: [num_priors].
+        overlap: The overlap thresh for suppressing unnecessary boxes.
+        top_k: The maximum number of box preds to consider.
+
+    Returns:
+        tuple: (keep, count) - The indices of kept boxes and their count.
     """
 
     keep = scores.new(scores.size(0)).zero_().long()
@@ -127,11 +136,15 @@ def nms(boxes, scores, overlap=0.5, top_k=200):
 
 
 class Detect(object):
-
-    def __init__(self, num_classes=2,
-                    top_k=750, nms_thresh=0.3, conf_thresh=0.05,
-                    variance=[0.1, 0.2], nms_top_k=5000):
-        
+    def __init__(
+        self,
+        num_classes=2,
+        top_k=750,
+        nms_thresh=0.3,
+        conf_thresh=0.05,
+        variance=[0.1, 0.2],
+        nms_top_k=5000,
+    ):
         self.num_classes = num_classes
         self.top_k = top_k
         self.nms_thresh = nms_thresh
@@ -140,7 +153,6 @@ class Detect(object):
         self.nms_top_k = nms_top_k
 
     def forward(self, loc_data, conf_data, prior_data):
-
         num = loc_data.size(0)
         num_priors = prior_data.size(0)
 
@@ -160,7 +172,7 @@ class Detect(object):
             for cl in range(1, self.num_classes):
                 c_mask = conf_scores[cl].gt(self.conf_thresh)
                 scores = conf_scores[cl][c_mask]
-                
+
                 if scores.dim() == 0:
                     continue
                 l_mask = c_mask.unsqueeze(1).expand_as(boxes)
@@ -168,19 +180,23 @@ class Detect(object):
                 ids, count = nms(boxes_, scores, self.nms_thresh, self.nms_top_k)
                 count = count if count < self.top_k else self.top_k
 
-                output[i, cl, :count] = torch.cat((scores[ids[:count]].unsqueeze(1), boxes_[ids[:count]]), 1)
+                output[i, cl, :count] = torch.cat(
+                    (scores[ids[:count]].unsqueeze(1), boxes_[ids[:count]]), 1
+                )
 
         return output
 
 
 class PriorBox(object):
-
-    def __init__(self, input_size, feature_maps,
-                    variance=[0.1, 0.2],
-                    min_sizes=[16, 32, 64, 128, 256, 512],
-                    steps=[4, 8, 16, 32, 64, 128],
-                    clip=False):
-
+    def __init__(
+        self,
+        input_size,
+        feature_maps,
+        variance=[0.1, 0.2],
+        min_sizes=[16, 32, 64, 128, 256, 512],
+        steps=[4, 8, 16, 32, 64, 128],
+        clip=False,
+    ):
         super(PriorBox, self).__init__()
 
         self.imh = input_size[0]
@@ -210,8 +226,8 @@ class PriorBox(object):
                 mean += [cx, cy, s_kw, s_kh]
 
         output = torch.FloatTensor(mean).view(-1, 4)
-        
+
         if self.clip:
             output.clamp_(max=1, min=0)
-        
+
         return output

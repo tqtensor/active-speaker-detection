@@ -15,28 +15,19 @@ cd active-speaker-detection
 
 ## ⚙️ Setup
 
-### 1. Create Conda Environment
+### 1. Install uv
 
 ```bash
-conda create --name active_speaker python=3.9 -y
-conda activate active_speaker
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ### 2. Install Dependencies
-💡 For GPU support, install PyTorch matching your CUDA version. Check [pytorch.org](https://pytorch.org/get-started/locally/) for installation instructions.
 
-Example for CUDA 11.8:
 ```bash
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+uv sync
 ```
 
-Then install the rest of the dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-
-
+This will create a virtual environment and install all dependencies including PyTorch with CUDA support.
 
 ---
 
@@ -45,7 +36,13 @@ pip install -r requirements.txt
 To run the pipeline, modify configurations in `./config/args.py` and then run `main.py`. Alternatively, you can run the script directly with command line arguments.
 
 ```bash
-python main.py --videoName video --videoFolder workdir
+uv run python main.py --videoName video --videoFolder workdir
+```
+
+For better performance with GPU, increase batch size and data loader threads:
+
+```bash
+uv run python main.py --videoName video --videoFolder workdir --yoloBatchSize 64 --nDataLoaderThread 16
 ```
 
 **Note:** video can be in `.mp4` or `.avi` formats.
@@ -85,6 +82,8 @@ workdir/
 
 ## 🔧 Improvements Made
 
+- Added batch face detection (`--yoloBatchSize`) for better GPU utilization.
+- Added parallel video cropping (`--nDataLoaderThread`) for faster preprocessing.
 - Added `--minSpeechLen` to filter out short/non-speech segments.
 - Added `--ignoreMultiSpeakers` to ignore segments with multiple speakers.
 - Skipped interpolation when face detections have no frame gaps, improving efficiency for continuous tracks.
@@ -99,5 +98,3 @@ This project builds on the great work from:
 
 - [TalkNet-ASD](https://github.com/TaoRuijie/TalkNet-ASD) for active speaker detection.
 - [YOLO-Face](https://github.com/akanametov/yolo-face) for face detection.
-
-
