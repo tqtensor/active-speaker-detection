@@ -5,6 +5,8 @@ import warnings
 import subprocess
 from shutil import rmtree
 import tqdm
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import multiprocessing
 
 # Local imports
 from config.args import get_args
@@ -13,6 +15,12 @@ from utils.video_utils import extract_video, extract_audio, extract_frames
 from utils.track_utils import scene_detect, track_shot, crop_video
 from utils.inference_utils import get_speaker_track_indices, evaluate_network
 from utils.helpers import visualization, summarize_tracks
+
+
+def crop_video_worker(params):
+    """Worker function for parallel crop_video processing"""
+    args, track, crop_path = params
+    return crop_video(args, track, crop_path)
 
 warnings.filterwarnings("ignore")
 
@@ -58,7 +66,7 @@ def main():
 
     # Step 2: Face detection
     scene = scene_detect(args)
-    faces = run_face_detection(args)
+    faces = run_face_detection(args, batch_size=args.yoloBatchSize)
 
     # Step 3: Face tracking
     allTracks, vidTracks = [], []
@@ -66,8 +74,20 @@ def main():
         if shot[1].frame_num - shot[0].frame_num >= args.minTrack:
             allTracks.extend(track_shot(args, faces[shot[0].frame_num:shot[1].frame_num]))
 
-    for ii, track in tqdm.tqdm(enumerate(allTracks), total=len(allTracks)):
-        vidTracks.append(crop_video(args, track, os.path.join(args.pycropPath, '%05d' % ii)))
+    # Parallel crop_video processing
+    num_workers = min(args.nDataLoaderThread, len(allTracks))
+    crop_params = [(args, track, os.path.join(args.pycropPath, '%05d' % ii))
+                   for ii, track in enumerate(allTracks)]
+
+    vidTracks = [None] * len(allTracks)  # Pre-allocate to maintain order
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        # Submit all tasks with their indices
+        future_to_idx = {executor.submit(crop_video_worker, params): idx
+                         for idx, params in enumerate(crop_params)}
+
+        for future in tqdm.tqdm(as_completed(future_to_idx), total=len(allTracks)):
+            idx = future_to_idx[future]
+            vidTracks[idx] = future.result()
 
     with open(os.path.join(args.pyworkPath, 'tracks.pckl'), 'wb') as f:
         pickle.dump(vidTracks, f)
