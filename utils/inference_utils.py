@@ -105,18 +105,17 @@ def evaluate_network(files, args):
     return allScores
 
 
-# improved by adding this function to get_speaker_track_indices (helps to focus on speaker tracks/IDs only)
 def get_speaker_track_indices(scores, args):
-    """
-    Identify tracks with at least one speaking frame above threshold. i.e., Collect tracks that have
-     any frame speaking (helps identify speakers).
+    """Identifies tracks with at least one speaking frame above threshold.
+
+    Collects tracks that have any frame speaking (helps identify speakers).
 
     Args:
         scores: List of per-frame speaking scores per track.
         args: Arguments containing the speakerThresh value.
 
     Returns:
-        List of track indices where speaker was detected.
+        list[int]: Track indices where speaker was detected.
     """
     speaker_track_indices = []
     for tidx, score in enumerate(scores):

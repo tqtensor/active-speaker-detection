@@ -1,11 +1,13 @@
-r"""Compute active speaker detection performance for the AVA dataset.
+r"""Computes active speaker detection performance for the AVA dataset.
+
 Please send any questions about this code to the Google Group ava-dataset-users:
 https://groups.google.com/forum/#!forum/ava-dataset-users
+
 Example usage:
-python -O get_ava_active_speaker_performance.py \
--g testdata/eval.csv \
--p testdata/predictions.csv \
--v
+    python -O get_ava_active_speaker_performance.py \
+    -g testdata/eval.csv \
+    -p testdata/predictions.csv \
+    -v
 """
 
 from __future__ import absolute_import, division, print_function
@@ -22,17 +24,21 @@ warnings.filterwarnings("ignore")
 
 
 def compute_average_precision(precision, recall):
-    """Compute Average Precision according to the definition in VOCdevkit.
-    Precision is modified to ensure that it does not decrease as recall
-    decrease.
+    """Computes Average Precision according to the definition in VOCdevkit.
+
+    Modifies precision to ensure that it does not decrease as recall
+    decreases.
+
     Args:
-      precision: A float [N, 1] numpy array of precisions
-      recall: A float [N, 1] numpy array of recalls
+        precision: A float [N, 1] numpy array of precisions.
+        recall: A float [N, 1] numpy array of recalls.
+
     Raises:
-      ValueError: if the input is not of the correct format
+        ValueError: If the input is not of the correct format.
+
     Returns:
-      average_precison: The area under the precision recall curve. NaN if
-        precision and recall are None.
+        float: The area under the precision recall curve. NaN if
+            precision and recall are None.
     """
     if precision is None:
         if recall is not None:
@@ -70,12 +76,15 @@ def compute_average_precision(precision, recall):
 
 def load_csv(filename, column_names):
     """Loads CSV from the filename using given column names.
+
     Adds uid column.
+
     Args:
-      filename: Path to the CSV file to load.
-      column_names: A list of column names for the data.
+        filename: Path to the CSV file to load.
+        column_names: A list of column names for the data.
+
     Returns:
-      df: A Pandas DataFrame containing the data.
+        pd.DataFrame: A Pandas DataFrame containing the data.
     """
     # Here and elsewhere, df indicates a DataFrame variable.
 
@@ -94,14 +103,17 @@ def eq(a, b, tolerance=1e-09):
 
 def merge_groundtruth_and_predictions(df_groundtruth, df_predictions):
     """Merges groundtruth and prediction DataFrames.
-    The returned DataFrame is merged on uid field and sorted in descending order
-    by score field. Bounding boxes are checked to make sure they match between
-    groundtruth and predictions.
+
+    Returns a DataFrame merged on uid field and sorted in descending order
+    by score field. Validates that bounding boxes match between groundtruth
+    and predictions.
+
     Args:
-      df_groundtruth: A DataFrame with groundtruth data.
-      df_predictions: A DataFrame with predictions data.
+        df_groundtruth: A DataFrame with groundtruth data.
+        df_predictions: A DataFrame with predictions data.
+
     Returns:
-      df_merged: A merged DataFrame, with rows matched on uid column.
+        pd.DataFrame: A merged DataFrame, with rows matched on uid column.
     """
     if df_groundtruth["uid"].count() != df_predictions["uid"].count():
         raise ValueError(
@@ -166,7 +178,7 @@ def get_all_positives(df_merged):
 
 
 def calculate_precision_recall(df_merged):
-    """Calculates precision and recall arrays going through df_merged row-wise."""
+    """Calculates precision and recall arrays by iterating through df_merged row-wise."""
     all_positives = get_all_positives(df_merged)
     # Populates each row with 1 if this row is a true positive
     # (at its score level).
@@ -198,7 +210,7 @@ def calculate_precision_recall(df_merged):
 
 
 def run_evaluation(groundtruth, predictions):
-    """Runs AVA Active Speaker evaluation, printing average precision result."""
+    """Runs AVA Active Speaker evaluation and prints average precision result."""
     df_groundtruth = load_csv(
         groundtruth,
         column_names=[
@@ -235,9 +247,10 @@ def run_evaluation(groundtruth, predictions):
 
 def parse_arguments():
     """Parses command-line flags.
+
     Returns:
-      args: a named tuple containing three file objects args.labelmap,
-      args.groundtruth, and args.detections.
+        argparse.Namespace: A namespace containing args.groundtruth and
+            args.predictions file objects.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(

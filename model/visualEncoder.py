@@ -9,12 +9,13 @@ import torch.nn.functional as F
 
 
 class ResNetLayer(nn.Module):
-    """
-    A ResNet layer used to build the ResNet network.
-    Architecture:
-    --> conv-bn-relu -> conv -> + -> bn-relu -> conv-bn-relu -> conv -> + -> bn-relu -->
-     |                        |   |                                    |
-     -----> downsample ------>    ------------------------------------->
+    """Implements a ResNet layer for building the ResNet network.
+
+    Architecture::
+
+        --> conv-bn-relu -> conv -> + -> bn-relu -> conv-bn-relu -> conv -> + -> bn-relu -->
+         |                        |   |                                    |
+         -----> downsample ------>    ------------------------------------->
     """
 
     def __init__(self, inplanes, outplanes, stride):
@@ -62,9 +63,7 @@ class ResNetLayer(nn.Module):
 
 
 class ResNet(nn.Module):
-    """
-    An 18-layer ResNet architecture.
-    """
+    """Implements an 18-layer ResNet architecture."""
 
     def __init__(self):
         super(ResNet, self).__init__()
@@ -106,8 +105,9 @@ class GlobalLayerNorm(nn.Module):
 
 
 class visualFrontend(nn.Module):
-    """
-    A visual feature extraction module. Generates a 512-dim feature vector per video frame.
+    """Extracts visual features from video frames.
+
+    Generates a 512-dim feature vector per video frame.
     Architecture: A 3D convolution block followed by an 18-layer ResNet.
     """
 

@@ -11,9 +11,16 @@ import tqdm
 
 
 def visualization(tracks, scores, args, speaker_track_indices):
-    """
-    Visualizes the active speaker results with bounding boxes and speaking duration counters.
+    """Visualizes active speaker results with bounding boxes and speaking duration counters.
+
     Skips frames with multiple speakers if args.ignoreMultiSpeakers is enabled.
+
+    Args:
+        tracks: List of track dictionaries containing frame and bounding box data.
+        scores: List of per-frame speaking scores per track.
+        args: Arguments containing visualization parameters (pyframesPath, pyaviPath,
+            speakerThresh, ignoreMultiSpeakers, minSpeechLen, nDataLoaderThread).
+        speaker_track_indices: List of track indices that have been identified as speakers.
     """
     flist = sorted(glob.glob(os.path.join(args.pyframesPath, "*.jpg")))
     faces = [[] for _ in range(len(flist))]
@@ -139,8 +146,17 @@ def visualization(tracks, scores, args, speaker_track_indices):
 
 
 def summarize_tracks(tracks, scores, args, speaker_track_indices):
-    """
-    Create a JSON summary of speaking intervals for each speaker ID.
+    """Creates a JSON summary of speaking intervals for each speaker ID.
+
+    Args:
+        tracks: List of track dictionaries containing frame and bounding box data.
+        scores: List of per-frame speaking scores per track.
+        args: Arguments containing speakerThresh, minSpeechLen, videoName, and pyworkPath.
+        speaker_track_indices: List of track indices that have been identified as speakers.
+
+    Returns:
+        dict: Output dictionary containing video_name, fps, and speakers with their
+            speaking intervals and total speaking time.
     """
 
     # Assign compact speaker IDs
