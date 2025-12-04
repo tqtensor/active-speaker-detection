@@ -27,7 +27,7 @@ def evaluate_network(files, args):
     for file in tqdm.tqdm(files, total = len(files)):
         # print('file', file)
 
-        fileName = os.path.splitext(file.split('\\')[-1])[0] # Load audio and video
+        fileName = os.path.splitext(os.path.basename(file))[0] # Load audio and video
         # print('fileName', fileName)
         # print('os.path.join(args.pycropPath, fileName + .wav)', os.path.join(args.pycropPath, fileName + '.wav'))
         _, audio = wavfile.read(os.path.join(args.pycropPath, fileName + '.wav'))
