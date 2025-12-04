@@ -12,7 +12,8 @@ dependencies = [
   "opencv-python>=4.7.0",
   "python-speech-features>=0.6",
   "gdown>=4.7.0",
-  "yt-dlp>=2023.0.0"
+  "yt-dlp>=2023.0.0",
+  "pandas>=2.3.3"
 ]
 description = "Active speaker detection in videos using YOLO face detection and TalkNet audio-visual classification"
 name = "active-speaker-detection"
