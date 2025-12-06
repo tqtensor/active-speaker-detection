@@ -9,6 +9,14 @@ def nms_(dets, thresh):
 
     Courtesy of Ross Girshick:
     https://github.com/rbgirshick/py-faster-rcnn/blob/master/lib/nms/py_cpu_nms.py
+
+    Args:
+        dets: Detection array of shape [N, 5] where each row is
+            [x1, y1, x2, y2, score].
+        thresh: IoU threshold for suppression.
+
+    Returns:
+        np.ndarray: Indices of kept detections.
     """
     x1 = dets[:, 0]
     y1 = dets[:, 1]
@@ -136,6 +144,17 @@ def nms(boxes, scores, overlap=0.5, top_k=200):
 
 
 class Detect(object):
+    """Post-processor for object detection that applies NMS to predictions.
+
+    Args:
+        num_classes: Number of classes to detect.
+        top_k: Maximum number of detections to keep per class.
+        nms_thresh: IoU threshold for non-maximum suppression.
+        conf_thresh: Confidence threshold for filtering detections.
+        variance: Prior box variances for decoding predictions.
+        nms_top_k: Maximum detections to consider before NMS.
+    """
+
     def __init__(
         self,
         num_classes=2,
@@ -188,6 +207,17 @@ class Detect(object):
 
 
 class PriorBox(object):
+    """Generates prior boxes (anchors) for object detection.
+
+    Args:
+        input_size: Input image size as (height, width).
+        feature_maps: List of feature map sizes for each detection layer.
+        variance: Variances for encoding/decoding box coordinates.
+        min_sizes: Minimum box sizes for each feature map layer.
+        steps: Stride/step size for each feature map layer.
+        clip: Whether to clip prior boxes to [0, 1] range.
+    """
+
     def __init__(
         self,
         input_size,

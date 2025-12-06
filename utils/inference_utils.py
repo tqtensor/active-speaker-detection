@@ -14,6 +14,18 @@ from model.talkNet import talkNet
 
 
 def evaluate_network(files, args):
+    """Evaluates active speaker detection using pretrained TalkNet.
+
+    Processes audio-visual files through TalkNet to compute speaking scores.
+    Uses multiple duration windows with weighted averaging for robust inference.
+
+    Args:
+        files: List of file paths to evaluate.
+        args: Arguments containing pycropPath and talkNetWeights.
+
+    Returns:
+        List of per-frame speaking scores for each input file.
+    """
     # GPU: active speaker detection by pretrained TalkNet
     s = talkNet()
     s.loadParameters(args.talkNetWeights)
@@ -115,7 +127,7 @@ def get_speaker_track_indices(scores, args):
         args: Arguments containing the speakerThresh value.
 
     Returns:
-        list[int]: Track indices where speaker was detected.
+        Track indices where speaker was detected.
     """
     speaker_track_indices = []
     for tidx, score in enumerate(scores):

@@ -9,13 +9,19 @@ import torch.nn.functional as F
 
 
 class ResNetLayer(nn.Module):
-    """Implements a ResNet layer for building the ResNet network.
+    """A ResNet layer consisting of two residual blocks.
 
-    Architecture::
+    This layer implements the building block for ResNet-18 architecture with
+    the following structure::
 
         --> conv-bn-relu -> conv -> + -> bn-relu -> conv-bn-relu -> conv -> + -> bn-relu -->
          |                        |   |                                    |
          -----> downsample ------>    ------------------------------------->
+
+    Args:
+        inplanes: Number of input channels.
+        outplanes: Number of output channels.
+        stride: Stride for the first convolution and downsample operation.
     """
 
     def __init__(self, inplanes, outplanes, stride):
@@ -63,7 +69,11 @@ class ResNetLayer(nn.Module):
 
 
 class ResNet(nn.Module):
-    """Implements an 18-layer ResNet architecture."""
+    """An 18-layer ResNet architecture for visual feature extraction.
+
+    This network consists of 4 ResNet layers with increasing channel dimensions
+    (64 -> 128 -> 256 -> 512) followed by average pooling.
+    """
 
     def __init__(self):
         super(ResNet, self).__init__()
@@ -85,6 +95,15 @@ class ResNet(nn.Module):
 
 
 class GlobalLayerNorm(nn.Module):
+    """Global Layer Normalization module.
+
+    Applies layer normalization across channel and temporal dimensions with
+    learnable scale (gamma) and shift (beta) parameters.
+
+    Args:
+        channel_size: Number of channels to normalize.
+    """
+
     def __init__(self, channel_size):
         super(GlobalLayerNorm, self).__init__()
         self.gamma = nn.Parameter(torch.Tensor(1, channel_size, 1))  # [1, N, 1]
@@ -105,10 +124,10 @@ class GlobalLayerNorm(nn.Module):
 
 
 class visualFrontend(nn.Module):
-    """Extracts visual features from video frames.
+    """Visual frontend for extracting features from video frames.
 
-    Generates a 512-dim feature vector per video frame.
-    Architecture: A 3D convolution block followed by an 18-layer ResNet.
+    Generates a 512-dimensional feature vector per video frame using a 3D
+    convolution block followed by an 18-layer ResNet architecture.
     """
 
     def __init__(self):
@@ -149,6 +168,12 @@ class visualFrontend(nn.Module):
 
 
 class DSConv1d(nn.Module):
+    """Depthwise Separable 1D Convolution block with residual connection.
+
+    Implements a sequence of ReLU, BatchNorm, depthwise convolution, PReLU,
+    Global Layer Normalization, and pointwise convolution with a skip connection.
+    """
+
     def __init__(self):
         super(DSConv1d, self).__init__()
         self.net = nn.Sequential(
@@ -168,6 +193,12 @@ class DSConv1d(nn.Module):
 
 
 class visualTCN(nn.Module):
+    """Visual Temporal Convolutional Network (V-TCN).
+
+    A stack of 5 Depthwise Separable 1D Convolution blocks for temporal
+    modeling of visual features.
+    """
+
     def __init__(self):
         super(visualTCN, self).__init__()
         stacks = []
@@ -181,6 +212,12 @@ class visualTCN(nn.Module):
 
 
 class visualConv1D(nn.Module):
+    """1D Convolutional head for visual feature projection.
+
+    Projects 512-dimensional visual features down to 128 dimensions through
+    two convolutional layers (512 -> 256 -> 128).
+    """
+
     def __init__(self):
         super(visualConv1D, self).__init__()
         self.net = nn.Sequential(

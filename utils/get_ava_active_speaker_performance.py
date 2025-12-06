@@ -33,12 +33,12 @@ def compute_average_precision(precision, recall):
         precision: A float [N, 1] numpy array of precisions.
         recall: A float [N, 1] numpy array of recalls.
 
+    Returns:
+        The area under the precision recall curve. NaN if precision and
+        recall are None.
+
     Raises:
         ValueError: If the input is not of the correct format.
-
-    Returns:
-        float: The area under the precision recall curve. NaN if
-            precision and recall are None.
     """
     if precision is None:
         if recall is not None:
@@ -84,7 +84,7 @@ def load_csv(filename, column_names):
         column_names: A list of column names for the data.
 
     Returns:
-        pd.DataFrame: A Pandas DataFrame containing the data.
+        A Pandas DataFrame containing the data with an added 'uid' column.
     """
     # Here and elsewhere, df indicates a DataFrame variable.
 
@@ -97,7 +97,16 @@ def load_csv(filename, column_names):
 
 
 def eq(a, b, tolerance=1e-09):
-    """Returns true if values are approximately equal."""
+    """Returns true if values are approximately equal.
+
+    Args:
+        a: First value to compare.
+        b: Second value to compare.
+        tolerance: Maximum allowed difference between values.
+
+    Returns:
+        True if the absolute difference is within tolerance.
+    """
     return abs(a - b) <= tolerance
 
 
@@ -113,7 +122,11 @@ def merge_groundtruth_and_predictions(df_groundtruth, df_predictions):
         df_predictions: A DataFrame with predictions data.
 
     Returns:
-        pd.DataFrame: A merged DataFrame, with rows matched on uid column.
+        A merged DataFrame with rows matched on uid column.
+
+    Raises:
+        ValueError: If row counts differ, labels are invalid, scores are
+            missing, or bounding boxes don't match.
     """
     if df_groundtruth["uid"].count() != df_predictions["uid"].count():
         raise ValueError(
@@ -171,14 +184,28 @@ def merge_groundtruth_and_predictions(df_groundtruth, df_predictions):
 
 
 def get_all_positives(df_merged):
-    """Counts all positive examples in the groundtruth dataset."""
+    """Counts all positive examples in the groundtruth dataset.
+
+    Args:
+        df_merged: Merged DataFrame containing groundtruth labels.
+
+    Returns:
+        Count of rows with SPEAKING_AUDIBLE label in groundtruth.
+    """
     return df_merged[df_merged["label_groundtruth"] == "SPEAKING_AUDIBLE"][
         "uid"
     ].count()
 
 
 def calculate_precision_recall(df_merged):
-    """Calculates precision and recall arrays by iterating through df_merged row-wise."""
+    """Calculates precision and recall arrays from merged predictions.
+
+    Args:
+        df_merged: Merged DataFrame sorted by prediction score in descending order.
+
+    Returns:
+        A tuple of (precision, recall) numpy arrays.
+    """
     all_positives = get_all_positives(df_merged)
     # Populates each row with 1 if this row is a true positive
     # (at its score level).
@@ -210,7 +237,15 @@ def calculate_precision_recall(df_merged):
 
 
 def run_evaluation(groundtruth, predictions):
-    """Runs AVA Active Speaker evaluation and prints average precision result."""
+    """Runs AVA Active Speaker evaluation and prints average precision result.
+
+    Args:
+        groundtruth: Path or file object for the groundtruth CSV file.
+        predictions: Path or file object for the predictions CSV file.
+
+    Returns:
+        The mean Average Precision (mAP) as a percentage.
+    """
     df_groundtruth = load_csv(
         groundtruth,
         column_names=[
@@ -249,8 +284,7 @@ def parse_arguments():
     """Parses command-line flags.
 
     Returns:
-        argparse.Namespace: A namespace containing args.groundtruth and
-            args.predictions file objects.
+        A namespace containing groundtruth and predictions file objects.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -274,6 +308,11 @@ def parse_arguments():
 
 
 def main():
+    """Main entry point for running AVA Active Speaker evaluation.
+
+    Returns:
+        The mean Average Precision (mAP) as a percentage.
+    """
     start = time.time()
     args = parse_arguments()
     if args.verbose:
