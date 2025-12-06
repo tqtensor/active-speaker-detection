@@ -155,8 +155,8 @@ def summarize_tracks(tracks, scores, args, speaker_track_indices):
         speaker_track_indices: List of track indices that have been identified as speakers.
 
     Returns:
-        dict: Output dictionary containing video_name, fps, and speakers with their
-            speaking intervals and total speaking time.
+        Output dictionary containing video_name, fps, and speakers with their
+        speaking intervals and total speaking time.
     """
 
     # Assign compact speaker IDs
