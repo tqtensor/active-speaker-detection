@@ -305,7 +305,7 @@ def export_metadata(tracks, scores, args, speaker_track_indices):
                 "bbox": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
                 "center": {"x": round(center_x, 2), "y": round(center_y, 2)},
                 "size": round(half_size, 2),
-                "raw_score": round(float(score[fidx]), 3),
+                "raw_score": round(float(score[min(fidx, len(score) - 1)]), 3),
                 "smoothed_score": round(smoothed_score, 3),
                 "is_speaking": is_speaking,
                 "speaking_duration": round(
