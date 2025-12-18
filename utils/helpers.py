@@ -232,3 +232,137 @@ def summarize_tracks(tracks, scores, args, speaker_track_indices):
     )
 
     return output
+
+
+def export_metadata(tracks, scores, args, speaker_track_indices):
+    """Exports frame-centric metadata as human-readable JSON.
+
+    Creates a comprehensive JSON file with per-frame face detection data,
+    bounding boxes, speaking scores, and speaker identification.
+
+    Args:
+        tracks: List of track dictionaries containing frame and bounding box data.
+        scores: List of per-frame speaking scores per track.
+        args: Arguments containing pyframesPath, pyworkPath, videoName,
+            speakerThresh, and minSpeechLen.
+        speaker_track_indices: List of track indices that have been identified as speakers.
+
+    Returns:
+        Output dictionary containing the complete frame-centric metadata.
+    """
+    flist = sorted(glob.glob(os.path.join(args.pyframesPath, "*.jpg")))
+    total_frames = len(flist)
+
+    # Create a mapping from track indices to speaker IDs
+    speaker_tracks_id_map = {
+        tidx: sid for sid, tidx in enumerate(speaker_track_indices)
+    }
+
+    # Initialize frame data structure
+    frames_data = [
+        {"frame_id": i, "timestamp": i / 25.0, "faces": []} for i in range(total_frames)
+    ]
+
+    # Track duration counters for cumulative speaking time
+    speaker_duration_counter = {}
+
+    # Populate frame data from tracks
+    for tidx, track in enumerate(tracks):
+        score = scores[tidx]
+        frame_indices = track["track"]["frame"].tolist()
+        bboxes = track["track"]["bbox"]
+        proc_track = track["proc_track"]
+
+        speaker_id = speaker_tracks_id_map.get(tidx, None)
+
+        for fidx, frame_num in enumerate(frame_indices):
+            # Compute smoothed score (5-frame window)
+            s = score[max(fidx - 2, 0) : min(fidx + 3, len(score) - 1)]
+            smoothed_score = float(numpy.mean(s))
+
+            is_speaking = smoothed_score >= args.speakerThresh
+
+            # Update duration counter
+            if is_speaking and speaker_id is not None:
+                speaker_duration_counter[speaker_id] = (
+                    speaker_duration_counter.get(speaker_id, 0) + 1
+                )
+            elif speaker_id is not None:
+                speaker_duration_counter[speaker_id] = 0
+
+            # Get bounding box coordinates
+            bbox = bboxes[fidx]
+            x1, y1, x2, y2 = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+
+            # Get processed track data (smoothed center and size)
+            center_x = float(proc_track["x"][fidx])
+            center_y = float(proc_track["y"][fidx])
+            half_size = float(proc_track["s"][fidx])
+
+            face_data = {
+                "track_id": tidx,
+                "speaker_id": speaker_id,
+                "bbox": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
+                "center": {"x": round(center_x, 2), "y": round(center_y, 2)},
+                "size": round(half_size, 2),
+                "raw_score": round(float(score[min(fidx, len(score) - 1)]), 3),
+                "smoothed_score": round(smoothed_score, 3),
+                "is_speaking": is_speaking,
+                "speaking_duration": round(
+                    speaker_duration_counter.get(speaker_id, 0) / 25.0, 3
+                )
+                if speaker_id is not None
+                else 0.0,
+            }
+
+            frames_data[frame_num]["faces"].append(face_data)
+
+    # Build track summary
+    tracks_summary = []
+    for tidx, track in enumerate(tracks):
+        score = scores[tidx]
+        frame_indices = track["track"]["frame"].tolist()
+        speaker_id = speaker_tracks_id_map.get(tidx, None)
+
+        speaking_frames = 0
+        for fidx in range(len(frame_indices)):
+            s = score[max(fidx - 2, 0) : min(fidx + 3, len(score) - 1)]
+            if numpy.mean(s) >= args.speakerThresh:
+                speaking_frames += 1
+
+        tracks_summary.append(
+            {
+                "track_id": tidx,
+                "speaker_id": speaker_id,
+                "frame_range": [int(frame_indices[0]), int(frame_indices[-1])],
+                "total_frames": len(frame_indices),
+                "speaking_frames": speaking_frames,
+                "speaking_ratio": round(speaking_frames / len(frame_indices), 3),
+                "avg_score": round(float(numpy.mean(score)), 3),
+            }
+        )
+
+    # Build output structure
+    output = {
+        "video_name": args.videoName,
+        "fps": 25,
+        "total_frames": total_frames,
+        "total_tracks": len(tracks),
+        "total_speakers": len(speaker_track_indices),
+        "parameters": {
+            "speaker_threshold": args.speakerThresh,
+            "min_speech_length": args.minSpeechLen,
+        },
+        "tracks_summary": tracks_summary,
+        "frames": frames_data,
+    }
+
+    output_path = os.path.join(args.pyworkPath, "frame_metadata.json")
+    with open(output_path, "w") as f:
+        json.dump(output, f, indent=2)
+
+    sys.stderr.write(
+        time.strftime("%Y-%m-%d %H:%M:%S") + f" Frame metadata saved to {output_path}\n"
+    )
+
+    return output

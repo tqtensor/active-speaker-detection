@@ -10,7 +10,7 @@ import tqdm
 
 from config.args import get_args
 from model.yoloFace import run_face_detection
-from utils.helpers import summarize_tracks, visualization
+from utils.helpers import export_metadata, summarize_tracks, visualization
 from utils.inference_utils import evaluate_network, get_speaker_track_indices
 from utils.track_utils import crop_video, scene_detect, track_shot
 from utils.video_utils import extract_audio, extract_frames, extract_video
@@ -128,6 +128,7 @@ def main():
     speaker_track_indices = get_speaker_track_indices(scores, args)
     visualization(vidTracks, scores, args, speaker_track_indices)
     summarize_tracks(vidTracks, scores, args, speaker_track_indices)
+    export_metadata(vidTracks, scores, args, speaker_track_indices)
 
 
 if __name__ == "__main__":
