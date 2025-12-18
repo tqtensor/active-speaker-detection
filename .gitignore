@@ -2,6 +2,7 @@
 *.avi
 *.jpg
 *.mp4
+*.pckl
 *.pcm
 *.pt
 *.wav
