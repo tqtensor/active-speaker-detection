@@ -6,10 +6,7 @@ import sys
 import cv2
 import ffmpeg
 import numpy
-from scenedetect.detectors import ContentDetector
-from scenedetect.scene_manager import SceneManager
-from scenedetect.stats_manager import StatsManager
-from scenedetect.video_manager import VideoManager
+from scenedetect import ContentDetector, SceneManager, open_video
 from scipy import signal
 from scipy.interpolate import interp1d
 from scipy.io import wavfile
@@ -17,22 +14,15 @@ from scipy.io import wavfile
 
 def scene_detect(args):
     # CPU: Scene detection, output is the list of each shot's time duration
-    # print('args.videoFilePath', args.videoFilePath)
-    videoManager = VideoManager([args.videoFilePath])
-    statsManager = StatsManager()
-    sceneManager = SceneManager(statsManager)
+    video = open_video(args.videoFilePath)
+    sceneManager = SceneManager()
     sceneManager.add_detector(ContentDetector())
-    baseTimecode = videoManager.get_base_timecode()
-    # print('baseTimecode', baseTimecode)
-    videoManager.set_downscale_factor()
-    videoManager.start()
-    sceneManager.detect_scenes(frame_source=videoManager)
-    sceneList = sceneManager.get_scene_list(baseTimecode)
+    sceneManager.detect_scenes(video)
+    sceneList = sceneManager.get_scene_list()
     savePath = os.path.join(args.pyworkPath, "scene.pckl")
     if sceneList == []:
-        sceneList = [
-            (videoManager.get_base_timecode(), videoManager.get_current_timecode())
-        ]
+        # If no scene cuts detected, treat entire video as one scene
+        sceneList = [(video.base_timecode, video.current_timecode)]
     with open(savePath, "wb") as fil:
         pickle.dump(sceneList, fil)
         sys.stderr.write(
