@@ -57,14 +57,16 @@ def download_weights(args):
     if not os.path.isfile(args.yoloFaceWeights):
         os.makedirs(os.path.dirname(args.yoloFaceWeights), exist_ok=True)
         yolo_url = YOLO_FACE_URLS[args.yoloVariant]
+        
         subprocess.run(
             [
-                "gdown",
+                "wget",
+                "-q",
+                "-L",
                 yolo_url,
                 "-O",
                 args.yoloFaceWeights,
             ],
-            stdout=subprocess.DEVNULL,
         )
 
 
