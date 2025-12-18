@@ -17,6 +17,14 @@ from utils.video_utils import extract_audio, extract_frames, extract_video
 
 warnings.filterwarnings("ignore")
 
+# YOLO variant download URLs from akanametov/yolo-face releases
+YOLO_FACE_URLS = {
+    "n": "https://github.com/akanametov/yolo-face/releases/download/v0.0.0/yolov11n-face.pt",
+    "s": "https://github.com/akanametov/yolo-face/releases/download/v0.0.0/yolov11s-face.pt",
+    "m": "https://github.com/akanametov/yolo-face/releases/download/v0.0.0/yolov11m-face.pt",
+    "l": "https://github.com/akanametov/yolo-face/releases/download/v0.0.0/yolov11l-face.pt",
+}
+
 
 def crop_video_worker(params):
     """Executes crop_video for parallel processing.
@@ -47,14 +55,17 @@ def download_weights(args):
 
     if not os.path.isfile(args.yoloFaceWeights):
         os.makedirs(os.path.dirname(args.yoloFaceWeights), exist_ok=True)
+        yolo_url = YOLO_FACE_URLS[args.yoloVariant]
+
         subprocess.run(
             [
-                "gdown",
-                "https://github.com/akanametov/yolo-face/releases/download/v0.0.0/yolov11n-face.pt",
+                "wget",
+                "-q",
+                "-L",
+                yolo_url,
                 "-O",
                 args.yoloFaceWeights,
             ],
-            stdout=subprocess.DEVNULL,
         )
 
 
@@ -76,6 +87,11 @@ def prepare_paths(args):
 
 def main():
     args = get_args()
+
+    # Set yoloFaceWeights based on variant if not explicitly provided
+    if args.yoloFaceWeights is None:
+        args.yoloFaceWeights = f"./weights/yolo/yolov11{args.yoloVariant}-face.pt"
+
     download_weights(args)  # Download weights if not present
     prepare_paths(args)
 
