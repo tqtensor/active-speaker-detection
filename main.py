@@ -46,7 +46,7 @@ def download_weights(args):
             [
                 "gdown",
                 "--id",
-                "1AbN9fCf9IexMxEKXLQY2KYBlb-IhSEea",
+                "1OEZiw1mM5Au_46ylcdDBOhClqjY7sH3V",
                 "-O",
                 args.talkNetWeights,
             ],
