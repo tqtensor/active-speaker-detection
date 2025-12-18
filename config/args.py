@@ -20,10 +20,18 @@ def get_args():
         help="Path for the pretrained TalkNet model",
     )
     parser.add_argument(
+        "--yoloVariant",
+        type=str,
+        default="n",
+        choices=["n", "s", "m", "l", "x"],
+        help="YOLOv11 variant for face detection: n (nano, fastest), s (small), "
+        "m (medium), l (large), x (extra-large, best accuracy)",
+    )
+    parser.add_argument(
         "--yoloFaceWeights",
         type=str,
-        default="./weights/yolo/yolov11n-face.pt",
-        help="Path for the pretrained TalkNet model",
+        default=None,
+        help="Path for the YOLO face detection model (auto-set based on --yoloVariant if not provided)",
     )
     parser.add_argument(
         "--nDataLoaderThread", type=int, default=10, help="Number of workers"
