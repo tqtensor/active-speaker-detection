@@ -1,8 +1,10 @@
 # Other files
-*.wav
+*.avi
+*.jpg
 *.mp4
 *.pcm
-*.avi
+*.pt
+*.wav
 
 # Dirs
 workdir/
@@ -113,6 +115,3 @@ venv.bak/
 
 # mypy
 .mypy_cache/
-
-# GMA
-gma
