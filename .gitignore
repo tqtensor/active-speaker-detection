@@ -1,6 +1,7 @@
 # Other files
 *.avi
 *.jpg
+*.json
 *.mp4
 *.pckl
 *.pcm
