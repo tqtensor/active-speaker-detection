@@ -23,7 +23,6 @@ YOLO_FACE_URLS = {
     "s": "https://github.com/akanametov/yolo-face/releases/download/v0.0.0/yolov11s-face.pt",
     "m": "https://github.com/akanametov/yolo-face/releases/download/v0.0.0/yolov11m-face.pt",
     "l": "https://github.com/akanametov/yolo-face/releases/download/v0.0.0/yolov11l-face.pt",
-    "x": "https://github.com/akanametov/yolo-face/releases/download/v0.0.0/yolov11x-face.pt",
 }
 
 
@@ -57,7 +56,7 @@ def download_weights(args):
     if not os.path.isfile(args.yoloFaceWeights):
         os.makedirs(os.path.dirname(args.yoloFaceWeights), exist_ok=True)
         yolo_url = YOLO_FACE_URLS[args.yoloVariant]
-        
+
         subprocess.run(
             [
                 "wget",
