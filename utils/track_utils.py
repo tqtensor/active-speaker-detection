@@ -9,7 +9,6 @@ import numpy
 from scenedetect import ContentDetector, SceneManager, open_video
 from scipy import signal
 from scipy.interpolate import interp1d
-from scipy.io import wavfile
 
 
 def scene_detect(args):
@@ -134,6 +133,7 @@ def crop_video(args, track, cropFile):
     audioEnd = (track["frame"][-1] + 1) / 25
     vOut.release()
 
+    # Extract audio segment for TalkNet inference
     (
         ffmpeg.input(
             args.audioFilePath, ss=audioStart, to=audioEnd
@@ -151,19 +151,7 @@ def crop_video(args, track, cropFile):
         .run()  # Execute the command
     )
 
-    _, audio = wavfile.read(audioTmp)
+    # Rename temp video to final name (muxing is unnecessary - TalkNet reads audio/video separately)
+    os.rename(cropFile + "t.avi", cropFile + ".avi")
 
-    (
-        ffmpeg.output(
-            ffmpeg.input(f"{cropFile}t.avi"),  # Input video file
-            ffmpeg.input(audioTmp),  # Input audio file
-            f"{cropFile}.avi",  # Output file path
-            c="copy",  # Copy codec (no re-encoding)
-            threads=args.nDataLoaderThread,  # Use specified number of threads
-            loglevel="panic",  # Suppress ffmpeg logs
-        )
-        .overwrite_output()
-        .run()
-    )
-    os.remove(cropFile + "t.avi")
     return {"track": track, "proc_track": dets}

@@ -87,5 +87,10 @@ def get_args():
         default=32,
         help="Batch size for YOLO face detection (increase for more GPU utilization)",
     )
+    parser.add_argument(
+        "--metadataOnly",
+        action="store_true",
+        help="Skip visualization video, only produce frame_metadata.json and speaker_summary.json",
+    )
 
     return parser.parse_args()

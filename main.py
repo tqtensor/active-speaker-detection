@@ -142,7 +142,11 @@ def main():
 
     # Step 5: Speaker processing
     speaker_track_indices = get_speaker_track_indices(scores, args)
-    visualization(vidTracks, scores, args, speaker_track_indices)
+
+    # Visualization is expensive - skip if only metadata is needed
+    if not args.metadataOnly:
+        visualization(vidTracks, scores, args, speaker_track_indices)
+
     summarize_tracks(vidTracks, scores, args, speaker_track_indices)
     export_metadata(vidTracks, scores, args, speaker_track_indices)
 
