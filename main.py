@@ -135,76 +135,107 @@ def run_talknet_inference_gpu(allTracks, args):
     import python_speech_features
     from scipy.io import wavfile
 
-    from utils.gpu_crop import crop_faces_gpu, prepare_talknet_input_gpu
-    from utils.gpu_video import decode_video_chunked, estimate_gpu_memory_mb, get_video_info
+    from utils.gpu_crop import crop_faces_gpu
+    from utils.gpu_video import (
+        decode_video_chunked,
+        get_video_info,
+    )
 
     print("\n[GPU Mode] Chunked video processing...")
     video_info = get_video_info(args.videoPath)
     total_frames = video_info["num_frames"]
-    
-    # Calculate optimal chunk size based on GPU memory
-    # Use 50% of GPU memory for frames (leave room for model + cropping)
-    gpu_memory_mb = torch.cuda.get_device_properties(0).total_memory / (1024 * 1024)
-    frame_size_mb = (video_info["height"] * video_info["width"] * 3) / (1024 * 1024)
-    max_frames_in_gpu = int((gpu_memory_mb * 0.5) / frame_size_mb)
-    chunk_size = min(max_frames_in_gpu, 5000)  # Cap at 5000 frames per chunk
-    
+
+    # Clear GPU cache from previous stages (YOLO, etc.)
+    torch.cuda.empty_cache()
+    torch.cuda.synchronize()
+
+    # Calculate optimal chunk size based on FREE GPU memory (not total)
+    # Account for: uint8 frames + float32 conversion (4x) + cropping overhead
+    # Use 10% of free memory to be safe
+    free_memory_mb, total_memory_mb = torch.cuda.mem_get_info(0)
+    free_memory_mb = free_memory_mb / (1024 * 1024)
+    total_memory_mb = total_memory_mb / (1024 * 1024)
+
+    # Frame size: uint8 (3 bytes) + float32 conversion (12 bytes) = 15 bytes/pixel
+    # Plus cropping/processing overhead, use ~20 bytes/pixel as estimate
+    frame_size_mb = (video_info["height"] * video_info["width"] * 20) / (1024 * 1024)
+    max_frames_in_gpu = int((free_memory_mb * 0.1) / frame_size_mb)
+    chunk_size = max(50, min(max_frames_in_gpu, 500))  # Between 50-500 frames
+
     num_chunks = (total_frames + chunk_size - 1) // chunk_size
     print(f"  Video: {total_frames} frames, {num_chunks} chunks of {chunk_size} frames")
-    print(f"  GPU memory: {gpu_memory_mb:.0f} MB, {frame_size_mb:.2f} MB/frame")
-    
+    print(
+        f"  GPU memory: {free_memory_mb:.0f} MB free / {total_memory_mb:.0f} MB total, {frame_size_mb:.2f} MB/frame (with float32)"
+    )
+
     # Process video in chunks, accumulating cropped faces
     all_cropped_tracks = {}  # {track_idx: list of (T, 3, 224, 224) tensors}
-    
+
     for chunk_idx, start_frame, frames in tqdm.tqdm(
         decode_video_chunked(args.videoPath, chunk_size=chunk_size, device_id=0),
         total=num_chunks,
-        desc="Decoding chunks"
+        desc="Decoding chunks",
     ):
         end_frame = start_frame + len(frames)
-        
+
         # Find tracks that have frames in this chunk
         chunk_tracks = []
         chunk_track_indices = []
         for track_idx, track in enumerate(allTracks):
-            track_frames = numpy.array(track['frame'])
-            track_bboxes = numpy.array(track['bbox'])
+            track_frames = numpy.array(track["frame"])
+            track_bboxes = numpy.array(track["bbox"])
             # Check if any frames from this track are in the current chunk
             mask = (track_frames >= start_frame) & (track_frames < end_frame)
             if mask.any():
                 # Create a sub-track with only frames in this chunk
                 sub_track = {
-                    'frame': track_frames[mask] - start_frame,  # Adjust to chunk-relative
-                    'bbox': track_bboxes[mask],
+                    "frame": track_frames[mask]
+                    - start_frame,  # Adjust to chunk-relative
+                    "bbox": track_bboxes[mask],
                 }
                 chunk_tracks.append(sub_track)
                 chunk_track_indices.append(track_idx)
-        
+
         if chunk_tracks:
             # Crop faces for this chunk
             chunk_cropped = crop_faces_gpu(
                 frames, chunk_tracks, crop_size=224, crop_scale=args.cropScale
             )
-            
+
             # Store results mapped to original track indices
             for local_idx, track_idx in enumerate(chunk_track_indices):
                 if local_idx in chunk_cropped:
                     if track_idx not in all_cropped_tracks:
                         all_cropped_tracks[track_idx] = []
                     all_cropped_tracks[track_idx].append(chunk_cropped[local_idx].cpu())
-        
+
         # Free GPU memory for this chunk
         del frames
         torch.cuda.empty_cache()
-    
-    # Combine cropped faces from all chunks (in frame order)
-    print("[GPU Mode] Combining cropped faces...")
+
+    # Combine cropped faces from all chunks (KEEP ON CPU to avoid OOM)
+    print("[GPU Mode] Combining cropped faces (on CPU)...")
     combined_cropped = {}
     for track_idx, crop_list in all_cropped_tracks.items():
-        combined_cropped[track_idx] = torch.cat(crop_list, dim=0).cuda()
-    
-    talknet_features = prepare_talknet_input_gpu(combined_cropped)
-    print(f"  Cropped {len(talknet_features)} tracks")
+        combined_cropped[track_idx] = torch.cat(crop_list, dim=0)  # Stay on CPU
+
+    # Free the chunk lists
+    del all_cropped_tracks
+    torch.cuda.empty_cache()
+
+    # Prepare TalkNet features (convert to grayscale 112x112) - on CPU
+    talknet_features = {}
+    for track_idx, crops in combined_cropped.items():
+        # Convert RGB to grayscale: 0.299*R + 0.587*G + 0.114*B
+        gray = 0.299 * crops[:, 0] + 0.587 * crops[:, 1] + 0.114 * crops[:, 2]
+        # Center crop from 224 to 112
+        start = (224 - 112) // 2
+        talknet_features[track_idx] = gray[:, start : start + 112, start : start + 112]
+
+    # Free the RGB crops
+    del combined_cropped
+
+    print(f"  Prepared {len(talknet_features)} tracks (on CPU)")
 
     # Load TalkNet model
     s = talkNet()
@@ -218,7 +249,7 @@ def run_talknet_inference_gpu(allTracks, args):
     print("[GPU Mode] Pre-processing tracks...")
     all_track_data = []
     vidTracks = []
-    
+
     for track_idx, track in enumerate(tqdm.tqdm(allTracks, desc="Preparing tracks")):
         # Crop video for audio extraction
         crop_path = os.path.join(args.pycropPath, "%05d" % track_idx)
@@ -229,7 +260,7 @@ def run_talknet_inference_gpu(allTracks, args):
             all_track_data.append(None)
             continue
 
-        videoFeature = talknet_features[track_idx].cpu().numpy()
+        videoFeature = talknet_features[track_idx].numpy()  # Already on CPU
 
         # Load audio features
         _, audio = wavfile.read(crop_path + ".wav")
@@ -245,90 +276,102 @@ def run_talknet_inference_gpu(allTracks, args):
         audioFeature = audioFeature[: int(round(length * 100)), :]
         videoFeature = videoFeature[: int(round(length * 25)), :, :]
 
-        all_track_data.append({
-            'audio': audioFeature,
-            'video': videoFeature,
-            'length': length,
-        })
+        all_track_data.append(
+            {
+                "audio": audioFeature,
+                "video": videoFeature,
+                "length": length,
+            }
+        )
 
     # Step 2: Batched TalkNet inference across all tracks
-    print(f"[GPU Mode] Running batched TalkNet inference (batch_size={args.talknetBatchSize})...")
-    
+    print(
+        f"[GPU Mode] Running batched TalkNet inference (batch_size={args.talknetBatchSize})..."
+    )
+
     # Initialize score storage
     all_track_scores = {i: [] for i in range(len(allTracks))}
-    
+
     for dur_idx, duration in enumerate(durationSet):
         # Collect all segments across all tracks for this duration
         segments = []  # [(track_idx, seg_idx, audio_seg, video_seg), ...]
-        
+
         for track_idx, track_data in enumerate(all_track_data):
             if track_data is None:
                 continue
-            
-            length = track_data['length']
+
+            length = track_data["length"]
             num_segs = int(math.ceil(length / duration))
-            
+
             for seg_idx in range(num_segs):
-                audio_seg = track_data['audio'][
+                audio_seg = track_data["audio"][
                     seg_idx * duration * 100 : (seg_idx + 1) * duration * 100, :
                 ]
-                video_seg = track_data['video'][
+                video_seg = track_data["video"][
                     seg_idx * duration * 25 : (seg_idx + 1) * duration * 25, :, :
                 ]
-                
+
                 if audio_seg.shape[0] > 0 and video_seg.shape[0] > 0:
                     segments.append((track_idx, seg_idx, audio_seg, video_seg))
-        
+
         # Process segments in batches
         segment_scores = {}  # {(track_idx, seg_idx): score}
         batch_size = args.talknetBatchSize
-        
+
         with torch.no_grad():
             for batch_start in range(0, len(segments), batch_size):
-                batch = segments[batch_start:batch_start + batch_size]
-                
+                batch = segments[batch_start : batch_start + batch_size]
+
                 # Pad to same length within batch
                 max_audio_len = max(seg[2].shape[0] for seg in batch)
                 max_video_len = max(seg[3].shape[0] for seg in batch)
-                
+
                 audio_batch = []
                 video_batch = []
                 for _, _, audio_seg, video_seg in batch:
                     # Pad audio
                     audio_padded = numpy.zeros((max_audio_len, 13), dtype=numpy.float32)
-                    audio_padded[:audio_seg.shape[0], :] = audio_seg
+                    audio_padded[: audio_seg.shape[0], :] = audio_seg
                     audio_batch.append(audio_padded)
-                    
+
                     # Pad video
-                    video_padded = numpy.zeros((max_video_len, 112, 112), dtype=numpy.float32)
-                    video_padded[:video_seg.shape[0], :, :] = video_seg
+                    video_padded = numpy.zeros(
+                        (max_video_len, 112, 112), dtype=numpy.float32
+                    )
+                    video_padded[: video_seg.shape[0], :, :] = video_seg
                     video_batch.append(video_padded)
-                
+
                 inputA = torch.FloatTensor(numpy.stack(audio_batch)).cuda()
                 inputV = torch.FloatTensor(numpy.stack(video_batch)).cuda()
-                
+
                 # Forward pass
                 embedA = s.model.forward_audio_frontend(inputA)
                 embedV = s.model.forward_visual_frontend(inputV)
                 embedA, embedV = s.model.forward_cross_attention(embedA, embedV)
                 out = s.model.forward_audio_visual_backend(embedA, embedV)
                 scores = s.lossAV.forward(out, labels=None)
-                
+
                 # Store scores per segment
                 for i, (track_idx, seg_idx, audio_seg, _) in enumerate(batch):
                     # Trim score to actual segment length (not padded length)
-                    actual_frames = audio_seg.shape[0] // 4  # MFCC frames to score frames
-                    seg_score = scores[i][:actual_frames] if isinstance(scores[i], list) else [scores[i]]
+                    actual_frames = (
+                        audio_seg.shape[0] // 4
+                    )  # MFCC frames to score frames
+                    seg_score = (
+                        scores[i][:actual_frames]
+                        if isinstance(scores[i], list)
+                        else [scores[i]]
+                    )
                     segment_scores[(track_idx, seg_idx)] = seg_score
-        
+
         # Aggregate scores for each track
         for track_idx, track_data in enumerate(all_track_data):
             if track_data is None:
                 continue
-            
-            length = track_data['length']
+
+            length = track_data["length"]
             num_segs = int(math.ceil(length / duration))
-            
+
             track_scores = []
             for seg_idx in range(num_segs):
                 if (track_idx, seg_idx) in segment_scores:
@@ -337,11 +380,11 @@ def run_talknet_inference_gpu(allTracks, args):
                         track_scores.extend(seg_score)
                     else:
                         track_scores.append(seg_score)
-            
+
             # Apply weight for this duration
             for _ in range(weights[dur_idx]):
                 all_track_scores[track_idx].append(track_scores)
-    
+
     # Step 3: Calculate final scores for each track
     all_scores = []
     for track_idx in range(len(allTracks)):
@@ -411,6 +454,14 @@ def main():
     print("ACTIVE SPEAKER DETECTION PIPELINE")
     print("=" * 60)
 
+    # Clear any residual GPU memory from previous runs
+    if torch.cuda.is_available():
+        try:
+            torch.cuda.empty_cache()
+        except RuntimeError as e:
+            print(f"  Warning: Could not clear GPU cache ({e})")
+            print("  Try running: pkill -9 python && nvidia-smi")
+
     # Step 1: Preprocess
     print("\n[1/5] Preprocessing video...")
     extract_video(args)
@@ -435,6 +486,11 @@ def main():
     if not allTracks:
         print("No face tracks found!")
         return
+
+    # Clean up GPU memory from YOLO before TalkNet
+    print("\n  Clearing GPU memory from face detection...")
+    torch.cuda.empty_cache()
+    torch.cuda.synchronize()
 
     # Step 4: TalkNet inference (choose GPU or standard mode)
     print("\n[4/5] Running TalkNet inference...")
