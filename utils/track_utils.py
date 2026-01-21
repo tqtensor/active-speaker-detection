@@ -95,6 +95,45 @@ def track_shot(args, sceneFaces):
     return tracks
 
 
+def extract_audio_only(args, track, cropFile):
+    """Extract only the audio segment for a track (no video cropping).
+
+    This is used in GPU mode where video cropping is already done on GPU.
+    Much faster than crop_video since it skips all frame reading/writing.
+    """
+    # Compute smoothed detection coordinates (needed for proc_track)
+    dets = {"x": [], "y": [], "s": []}
+    for det in track["bbox"]:
+        dets["s"].append(max((det[3] - det[1]), (det[2] - det[0])) / 2)
+        dets["y"].append((det[1] + det[3]) / 2)
+        dets["x"].append((det[0] + det[2]) / 2)
+    dets["s"] = signal.medfilt(dets["s"], kernel_size=13)
+    dets["x"] = signal.medfilt(dets["x"], kernel_size=13)
+    dets["y"] = signal.medfilt(dets["y"], kernel_size=13)
+
+    # Extract audio segment
+    audioTmp = cropFile + ".wav"
+    audioStart = (track["frame"][0]) / 25
+    audioEnd = (track["frame"][-1] + 1) / 25
+
+    (
+        ffmpeg.input(args.audioFilePath, ss=audioStart, to=audioEnd)
+        .output(
+            audioTmp,
+            ac=1,
+            vn=None,
+            acodec="pcm_s16le",
+            ar=16000,
+            threads=1,  # Use single thread per process (parallelism comes from multiprocessing)
+            loglevel="panic",
+        )
+        .overwrite_output()
+        .run()
+    )
+
+    return {"track": track, "proc_track": dets}
+
+
 def crop_video(args, track, cropFile):
     # CPU: crop the face clips
     flist = glob.glob(os.path.join(args.pyframesPath, "*.jpg"))  # Read the frames

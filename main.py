@@ -27,7 +27,7 @@ from model.talkNet import talkNet
 from model.yoloFace import run_face_detection
 from utils.helpers import export_metadata, summarize_tracks, visualization
 from utils.inference_utils import get_speaker_track_indices
-from utils.track_utils import crop_video, scene_detect, track_shot
+from utils.track_utils import crop_video, extract_audio_only, scene_detect, track_shot
 from utils.video_utils import extract_audio, extract_frames, extract_video
 
 warnings.filterwarnings("ignore")
@@ -45,6 +45,12 @@ def crop_video_worker(params):
     """Executes crop_video for parallel processing."""
     args, track, crop_path = params
     return crop_video(args, track, crop_path)
+
+
+def extract_audio_worker(params):
+    """Executes extract_audio_only for parallel processing (GPU mode)."""
+    args, track, crop_path = params
+    return extract_audio_only(args, track, crop_path)
 
 
 def download_weights(args):
@@ -245,16 +251,31 @@ def run_talknet_inference_gpu(allTracks, args):
     durationSet = [1, 2, 3, 4, 5, 6]
     weights = [3, 3, 2, 1, 1, 1]
 
-    # Step 1: Pre-process all tracks (crop video for audio, prepare features)
-    print("[GPU Mode] Pre-processing tracks...")
-    all_track_data = []
-    vidTracks = []
+    # Step 1: Extract audio for all tracks in parallel (skip video cropping - GPU already has it)
+    print("[GPU Mode] Extracting audio in parallel...")
+    num_workers = min(args.nDataLoaderThread, len(allTracks))
+    audio_params = [
+        (args, track, os.path.join(args.pycropPath, "%05d" % ii))
+        for ii, track in enumerate(allTracks)
+    ]
 
-    for track_idx, track in enumerate(tqdm.tqdm(allTracks, desc="Preparing tracks")):
-        # Crop video for audio extraction
+    vidTracks = [None] * len(allTracks)
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        future_to_idx = {
+            executor.submit(extract_audio_worker, params): idx
+            for idx, params in enumerate(audio_params)
+        }
+        for future in tqdm.tqdm(
+            as_completed(future_to_idx), total=len(allTracks), desc="Extracting audio"
+        ):
+            idx = future_to_idx[future]
+            vidTracks[idx] = future.result()
+
+    # Step 2: Prepare TalkNet features (combine GPU video features + extracted audio)
+    print("[GPU Mode] Preparing TalkNet features...")
+    all_track_data = []
+    for track_idx in range(len(allTracks)):
         crop_path = os.path.join(args.pycropPath, "%05d" % track_idx)
-        vidTrack = crop_video(args, track, crop_path)
-        vidTracks.append(vidTrack)
 
         if track_idx not in talknet_features:
             all_track_data.append(None)
