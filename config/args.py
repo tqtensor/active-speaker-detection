@@ -92,5 +92,16 @@ def get_args():
         action="store_true",
         help="Skip visualization video, only produce frame_metadata.json and speaker_summary.json",
     )
+    parser.add_argument(
+        "--useBatched",
+        action="store_true",
+        help="Use batched TalkNet inference for faster processing (2-3x speedup)",
+    )
+    parser.add_argument(
+        "--talknetBatchSize",
+        type=int,
+        default=16,
+        help="Batch size for TalkNet inference when using --useBatched",
+    )
 
     return parser.parse_args()

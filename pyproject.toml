@@ -1,19 +1,20 @@
 [project]
 dependencies = [
-  "torch>=2.0.0",
-  "torchvision>=0.15.0",
-  "torchaudio>=2.0.0",
-  "ultralytics>=8.0.0",
+  "decord>=0.6.0",
   "ffmpeg-python>=0.2.0",
-  "scipy>=1.10.0",
-  "scikit-learn>=1.2.0",
-  "tqdm>=4.65.0",
-  "scenedetect>=0.6.0",
-  "opencv-python>=4.7.0",
-  "python-speech-features>=0.6",
   "gdown>=4.7.0",
-  "yt-dlp>=2023.0.0",
-  "pandas>=2.3.3"
+  "opencv-python>=4.7.0",
+  "pandas>=2.3.3",
+  "python-speech-features>=0.6",
+  "scenedetect>=0.6.0",
+  "scikit-learn>=1.2.0",
+  "scipy>=1.10.0",
+  "torch>=2.0.0",
+  "torchaudio>=2.0.0",
+  "torchvision>=0.15.0",
+  "tqdm>=4.65.0",
+  "ultralytics>=8.0.0",
+  "yt-dlp>=2023.0.0"
 ]
 description = "Active speaker detection in videos using YOLO face detection and TalkNet audio-visual classification"
 name = "active-speaker-detection"
@@ -32,12 +33,12 @@ dev = [
 extra-index-url = ["https://download.pytorch.org/whl/cu124"]
 package = false
 
-[tool.uv.sources]
-torch = {index = "pytorch-cu124"}
-torchaudio = {index = "pytorch-cu124"}
-torchvision = {index = "pytorch-cu124"}
-
 [[tool.uv.index]]
 explicit = true
 name = "pytorch-cu124"
 url = "https://download.pytorch.org/whl/cu124"
+
+[tool.uv.sources]
+torch = {index = "pytorch-cu124"}
+torchaudio = {index = "pytorch-cu124"}
+torchvision = {index = "pytorch-cu124"}
