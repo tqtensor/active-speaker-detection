@@ -1,6 +1,6 @@
 [project]
 dependencies = [
-  "decord>=0.6.0",
+  "av>=11.0.0",
   "ffmpeg-python>=0.2.0",
   "gdown>=4.7.0",
   "opencv-python>=4.7.0",
