@@ -154,22 +154,33 @@ def extract_frames(args):
 
     Converts the video file into a sequence of JPEG image files using ffmpeg.
     Each frame is saved with a sequential numeric filename (e.g., 000001.jpg,
-    000002.jpg, etc.).
+    000002.jpg, etc.). Optionally downscales frames to specified height.
 
     Args:
         args: Configuration object containing:
             - videoFilePath: Path to the input video file.
             - pyframesPath: Output directory for the extracted frame images.
             - nDataLoaderThread: Number of threads for ffmpeg processing.
+            - frameHeight: Optional height to downscale frames (maintains aspect ratio).
 
     Raises:
         RuntimeError: If ffmpeg fails to extract the frames.
     """
     # Extract the video frames
     try:
+        input_stream = ffmpeg.input(args.videoFilePath)
+
+        # Apply scaling if frameHeight is specified
+        if args.frameHeight:
+            # Scale to specified height, maintaining aspect ratio (-1 for width)
+            input_stream = input_stream.filter("scale", -1, args.frameHeight)
+            sys.stderr.write(
+                time.strftime("%Y-%m-%d %H:%M:%S")
+                + f" Downscaling frames to height={args.frameHeight}px\r\n"
+            )
+
         (
-            ffmpeg.input(args.videoFilePath)
-            .output(
+            input_stream.output(
                 os.path.join(args.pyframesPath, "%06d.jpg"),
                 qscale="2",  # Image quality
                 f="image2",  # Image muxer
