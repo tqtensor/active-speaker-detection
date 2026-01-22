@@ -113,3 +113,94 @@ def run_face_detection(args, batch_size=32):
         pickle.dump(dets, fil)
 
     return dets
+
+
+def run_face_detection_gpu(args, batch_size=512, chunk_size=10000):
+    """Runs GPU-accelerated face detection directly from video frames in memory.
+
+    Loads entire video to RAM using chunked approach for progress feedback,
+    then processes with YOLO in batches for maximum GPU utilization.
+
+    Args:
+        args: Configuration object containing yoloFaceWeights (path to YOLO
+            weights), videoPath (path to video file), and pyworkPath (working
+            directory for output).
+        batch_size: Number of frames to process in each YOLO batch.
+        chunk_size: Number of frames to load per chunk (for progress feedback).
+
+    Returns:
+        List of detection results, where each element is a list of face
+        detections for the corresponding frame. Each detection contains
+        frame index, bounding box coordinates, and confidence score.
+    """
+    import numpy as np
+
+    from utils.gpu_video import decode_video_chunked, get_video_info
+
+    # Load YOLO model
+    model = YOLO(args.yoloFaceWeights)
+
+    # Get video info
+    video_info = get_video_info(args.videoPath)
+    total_frames = video_info["num_frames"]
+
+    print(f"  Video: {total_frames} frames")
+    print(f"  Loading entire video to RAM (chunks of {chunk_size} frames)...")
+
+    # Load ALL frames to RAM using chunked approach (shows progress)
+    all_chunks = []
+    for chunk_idx, start_frame, frames_tensor in decode_video_chunked(
+        args.videoPath, chunk_size=chunk_size, device_id=0, to_gpu=False
+    ):
+        all_chunks.append(frames_tensor.numpy())
+        loaded = start_frame + len(frames_tensor)
+        sys.stderr.write(f"  Loading: {loaded:05d}/{total_frames:05d} frames\r")
+
+    sys.stderr.write("\n")
+
+    # Concatenate all chunks into single array
+    print("  Concatenating chunks...")
+    frames_np = np.concatenate(all_chunks, axis=0)
+    del all_chunks  # Free chunk list memory
+
+    mem_gb = frames_np.nbytes / (1024**3)
+    print(f"  Loaded {len(frames_np)} frames to RAM ({mem_gb:.2f} GB)")
+    print(f"  Processing in batches of {batch_size} frames")
+
+    # Pre-allocate results list
+    all_dets = [None] * total_frames
+
+    # Process all frames in batches (GPU stays continuously fed)
+    for batch_start in range(0, total_frames, batch_size):
+        batch_end = min(batch_start + batch_size, total_frames)
+        # Convert to list of images (YOLO expects list, not batched array)
+        batch_frames = [frames_np[i] for i in range(batch_start, batch_end)]
+
+        # YOLO batch inference on GPU
+        results = model.predict(
+            batch_frames, conf=0.7, iou=0.5, verbose=False, device=0
+        )
+
+        # Process results for each frame in batch
+        for i, result in enumerate(results):
+            frame_idx = batch_start + i
+
+            all_dets[frame_idx] = [
+                {
+                    "frame": frame_idx,
+                    "bbox": box.xyxy.cpu().numpy().tolist()[0],
+                    "conf": float(box.conf.item()),
+                }
+                for box in result.boxes
+            ]
+
+        # Progress update
+        sys.stderr.write(f"Face detection: {batch_end:05d}/{total_frames:05d} frames\r")
+
+    sys.stderr.write("\n")
+
+    # Save results
+    with open(os.path.join(args.pyworkPath, "faces.pckl"), "wb") as fil:
+        pickle.dump(all_dets, fil)
+
+    return all_dets

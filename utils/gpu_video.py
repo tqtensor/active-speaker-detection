@@ -1,5 +1,3 @@
-
-
 from typing import Tuple
 
 import av
@@ -86,7 +84,9 @@ def decode_video_cpu_to_gpu(video_path: str, device_id: int = 0) -> torch.Tensor
     return frames_tensor.cuda(device_id)
 
 
-def decode_video_chunked(video_path: str, chunk_size: int = 7500, device_id: int = 0):
+def decode_video_chunked(
+    video_path: str, chunk_size: int = 7500, device_id: int = 0, to_gpu: bool = True
+):
     """Decodes video in chunks for memory-efficient processing.
 
     Useful for long videos that may exceed GPU memory if loaded entirely.
@@ -96,10 +96,11 @@ def decode_video_chunked(video_path: str, chunk_size: int = 7500, device_id: int
         video_path: Path to video file.
         chunk_size: Number of frames per chunk (7500 = ~5 min at 25fps).
         device_id: GPU device ID.
+        to_gpu: Whether to move frames to GPU. Set False to keep on CPU.
 
     Yields:
         Tuple containing chunk index, start frame number, and tensor of
-        frames on GPU.
+        frames (on GPU if to_gpu=True, else CPU).
     """
     container = av.open(video_path)
 
@@ -114,7 +115,9 @@ def decode_video_chunked(video_path: str, chunk_size: int = 7500, device_id: int
         # Yield chunk when full
         if len(frames_list) >= chunk_size:
             frames_np = np.stack(frames_list)
-            frames_tensor = torch.from_numpy(frames_np).cuda(device_id)
+            frames_tensor = torch.from_numpy(frames_np)
+            if to_gpu:
+                frames_tensor = frames_tensor.cuda(device_id)
             yield chunk_idx, start_frame, frames_tensor
 
             chunk_idx += 1
@@ -124,7 +127,9 @@ def decode_video_chunked(video_path: str, chunk_size: int = 7500, device_id: int
     # Yield remaining frames
     if frames_list:
         frames_np = np.stack(frames_list)
-        frames_tensor = torch.from_numpy(frames_np).cuda(device_id)
+        frames_tensor = torch.from_numpy(frames_np)
+        if to_gpu:
+            frames_tensor = frames_tensor.cuda(device_id)
         yield chunk_idx, start_frame, frames_tensor
 
     container.close()
