@@ -98,6 +98,12 @@ def get_args():
         help="Batch size for YOLO face detection (increase for more GPU utilization)",
     )
     parser.add_argument(
+        "--frameHeight",
+        type=int,
+        default=None,
+        help="Downscale frames to this height (e.g., 360 for 360p) for faster I/O. Maintains aspect ratio. Default: no scaling",
+    )
+    parser.add_argument(
         "--metadataOnly",
         action="store_true",
         help="Skip visualization video, only produce frame_metadata.json and speaker_summary.json",
