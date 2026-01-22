@@ -15,7 +15,7 @@ def evaluate_network(files, args):
 
     Processes audio-visual files through TalkNet to compute speaking scores.
     Uses multiple duration windows with weighted averaging for robust inference.
-    This optimized version uses decord for faster video loading and pre-loads
+    This optimized version uses PyAV for faster video loading and pre-loads
     all data before the inference loop to minimize I/O in the hot path.
 
     Args:
@@ -34,7 +34,7 @@ def evaluate_network(files, args):
     s.eval()
 
     # Pre-load all video/audio data for faster inference loop
-    preloaded = preload_video_data(files, args.pycropPath, use_decord=True)
+    preloaded = preload_video_data(files, args.pycropPath, use_pyav=True)
 
     allScores = []
 
@@ -130,7 +130,7 @@ def evaluate_network_batched(files, args, batch_size=16):
     """Evaluates active speaker detection using batched TalkNet inference.
 
     Processes multiple face tracks in parallel using DataLoader for
-    2-3x speedup over sequential processing. Uses decord for fast
+    2-3x speedup over sequential processing. Uses PyAV for fast
     video loading and pre-loads all data before inference to minimize
     I/O overhead in the hot path.
 
@@ -154,7 +154,7 @@ def evaluate_network_batched(files, args, batch_size=16):
     s.eval()
 
     # Pre-load all video/audio data
-    preloaded = preload_video_data(files, args.pycropPath, use_decord=True)
+    preloaded = preload_video_data(files, args.pycropPath, use_pyav=True)
 
     # Extract features as dicts
     video_features = {}
