@@ -1,11 +1,4 @@
-"""GPU face cropping utilities.
-
-This module provides GPU-accelerated face cropping operations using PyTorch.
-Crops faces directly on GPU memory without disk I/O, extracting TalkNet-ready
-features from tracked bounding boxes.
-"""
-
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import torch
 import torch.nn.functional as F
@@ -15,23 +8,23 @@ def crop_faces_gpu(
     frames: torch.Tensor,
     tracks: List[Dict],
     crop_size: int = 224,
-    crop_scale: float = 0.4
+    crop_scale: float = 0.4,
 ) -> Dict[int, torch.Tensor]:
-    """Crop faces directly on GPU without disk I/O.
+    """Crops faces directly on GPU without disk I/O.
 
-    Extracts face regions from frames based on tracked bounding boxes,
+    Extracts face regions from frames based on tracked bounding boxes and
     resizes to uniform size for TalkNet input.
 
     Args:
         frames: Video frames on GPU, shape (N, H, W, 3), uint8.
         tracks: List of track dicts, each with 'frame' (array of frame indices)
-               and 'bbox' (array of [x1, y1, x2, y2] for each frame).
+            and 'bbox' (array of [x1, y1, x2, y2] for each frame).
         crop_size: Output face crop size (square).
         crop_scale: Padding scale for bounding box expansion.
 
     Returns:
-        Dict mapping track_idx to cropped face tensors,
-        each of shape (T, 3, crop_size, crop_size).
+        Dict mapping track_idx to cropped face tensors, each of shape
+        (T, 3, crop_size, crop_size).
     """
     # Convert to float and normalize, reorder to (N, C, H, W)
     frames_float = frames.float() / 255.0
@@ -41,8 +34,8 @@ def crop_faces_gpu(
     cropped_tracks = {}
 
     for track_idx, track in enumerate(tracks):
-        frame_indices = track['frame']
-        bboxes = track['bbox']
+        frame_indices = track["frame"]
+        bboxes = track["bbox"]
 
         crops = []
         for i, fidx in enumerate(frame_indices):
@@ -70,10 +63,7 @@ def crop_faces_gpu(
             # Extract and resize
             face = frame[:, crop_y1:crop_y2, crop_x1:crop_x2].unsqueeze(0)
             face = F.interpolate(
-                face,
-                size=(crop_size, crop_size),
-                mode='bilinear',
-                align_corners=False
+                face, size=(crop_size, crop_size), mode="bilinear", align_corners=False
             )
             crops.append(face.squeeze(0))
 
@@ -84,7 +74,7 @@ def crop_faces_gpu(
 
 
 def extract_talknet_features_gpu(cropped_faces: torch.Tensor) -> torch.Tensor:
-    """Convert cropped faces to TalkNet input format on GPU.
+    """Converts cropped faces to TalkNet input format on GPU.
 
     TalkNet expects grayscale 112x112 center-cropped face images.
 
@@ -92,19 +82,19 @@ def extract_talknet_features_gpu(cropped_faces: torch.Tensor) -> torch.Tensor:
         cropped_faces: Tensor of shape (T, 3, 224, 224) on GPU.
 
     Returns:
-        Tensor of shape (T, 112, 112) - grayscale, center-cropped.
+        Tensor of shape (T, 112, 112), grayscale and center-cropped.
     """
     # Convert RGB to grayscale: 0.299*R + 0.587*G + 0.114*B
     # Input is (T, 3, H, W)
     gray = (
-        0.299 * cropped_faces[:, 0] +
-        0.587 * cropped_faces[:, 1] +
-        0.114 * cropped_faces[:, 2]
+        0.299 * cropped_faces[:, 0]
+        + 0.587 * cropped_faces[:, 1]
+        + 0.114 * cropped_faces[:, 2]
     )
 
     # Center crop from 224 to 112
     start = (224 - 112) // 2
-    gray = gray[:, start:start + 112, start:start + 112]
+    gray = gray[:, start : start + 112, start : start + 112]
 
     return gray
 
@@ -114,12 +104,12 @@ def batch_crop_faces_gpu(
     tracks: List[Dict],
     crop_size: int = 224,
     crop_scale: float = 0.4,
-    batch_size: int = 100
+    batch_size: int = 100,
 ) -> Dict[int, torch.Tensor]:
-    """Memory-efficient batched face cropping.
+    """Crops faces in batches for memory efficiency.
 
-    Processes crops in batches to avoid GPU memory overflow for
-    videos with many tracked faces.
+    Processes crops in batches to avoid GPU memory overflow for videos with
+    many tracked faces.
 
     Args:
         frames: Video frames on GPU, shape (N, H, W, 3), uint8.
@@ -152,12 +142,12 @@ def batch_crop_faces_gpu(
 
 
 def prepare_talknet_input_gpu(
-    cropped_tracks: Dict[int, torch.Tensor]
+    cropped_tracks: Dict[int, torch.Tensor],
 ) -> Dict[int, torch.Tensor]:
-    """Prepare all cropped tracks for TalkNet input.
+    """Prepares all cropped tracks for TalkNet input.
 
-    Converts all cropped RGB faces to grayscale 112x112 format
-    expected by TalkNet.
+    Converts all cropped RGB faces to grayscale 112x112 format expected by
+    TalkNet.
 
     Args:
         cropped_tracks: Dict of {track_idx: (T, 3, 224, 224) tensor}.

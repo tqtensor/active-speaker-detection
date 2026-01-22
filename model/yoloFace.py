@@ -8,10 +8,34 @@ from ultralytics import YOLO
 
 
 def load_yolo_model(weights_path):
+    """Loads a YOLO model from the specified weights file.
+
+    Args:
+        weights_path: Path to the YOLO model weights file.
+
+    Returns:
+        Initialized YOLO model instance.
+    """
     return YOLO(weights_path)
 
 
 def run_face_detection_single(model, frames_path, video_file_path, work_path):
+    """Runs face detection on individual frames using a YOLO model.
+
+    Processes frames sequentially from the specified directory, detects faces
+    with confidence threshold of 0.7, and saves results as a pickle file.
+
+    Args:
+        model: YOLO model instance for face detection.
+        frames_path: Directory path containing frame images (.jpg files).
+        video_file_path: Video file path used for progress reporting.
+        work_path: Working directory where results will be saved.
+
+    Returns:
+        List of detection results, where each element is a list of face
+        detections for the corresponding frame. Each detection contains
+        frame index, bounding box coordinates, and confidence score.
+    """
     flist = sorted(glob.glob(os.path.join(frames_path, "*.jpg")))
     dets = []
 
@@ -37,6 +61,22 @@ def run_face_detection_single(model, frames_path, video_file_path, work_path):
 
 
 def run_face_detection(args, batch_size=32):
+    """Runs batch face detection on video frames using YOLO.
+
+    Processes frames in batches for improved performance, detects faces with
+    confidence threshold of 0.7, and saves results to the working directory.
+
+    Args:
+        args: Configuration object containing yoloFaceWeights (path to YOLO
+            weights), pyframesPath (directory with extracted frames), and
+            pyworkPath (working directory for output).
+        batch_size: Number of frames to process in each batch.
+
+    Returns:
+        List of detection results, where each element is a list of face
+        detections for the corresponding frame. Each detection contains
+        frame index, bounding box coordinates, and confidence score.
+    """
     model = YOLO(args.yoloFaceWeights)
 
     flist = sorted(glob.glob(os.path.join(args.pyframesPath, "*.jpg")))

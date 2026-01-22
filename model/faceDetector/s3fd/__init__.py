@@ -17,7 +17,22 @@ img_mean = np.array([104.0, 117.0, 123.0])[:, np.newaxis, np.newaxis].astype("fl
 
 
 class S3FD:
+    """A face detector using the S3FD (Single Shot Scale-invariant Face Detector) model.
+
+    Provides face detection capabilities using a pre-trained S3FD network.
+    The model is automatically downloaded if not present.
+
+    Attributes:
+        device: Device to run the model on.
+        net: The S3FD neural network instance.
+    """
+
     def __init__(self, device="cuda"):
+        """Initializes the S3FD face detector.
+
+        Args:
+            device: Device to run the model on ('cuda' or 'cpu'). Defaults to 'cuda'.
+        """
         self.device = device
 
         # print('[S3FD] loading with', self.device)
@@ -29,6 +44,20 @@ class S3FD:
         # print('[S3FD] finished loading (%.4f sec)' % (time.time() - tstamp))
 
     def detect_faces(self, image, conf_th=0.8, scales=[1]):
+        """Detects faces in the given image.
+
+        Performs multi-scale face detection using the S3FD network and
+        applies non-maximum suppression to filter overlapping detections.
+
+        Args:
+            image: Input image as a NumPy array (H, W, C).
+            conf_th: Confidence threshold for filtering detections.
+            scales: List of scaling factors for multi-scale detection.
+
+        Returns:
+            NumPy array of detected faces with shape (N, 5), where each row
+            contains [x1, y1, x2, y2, confidence_score].
+        """
         w, h = image.shape[1], image.shape[0]
 
         bboxes = np.empty(shape=(0, 5))

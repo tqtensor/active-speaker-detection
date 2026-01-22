@@ -2,6 +2,16 @@ import argparse
 
 
 def get_args():
+    """Parses command-line arguments for active speaker detection.
+
+    Configures and returns arguments for video processing, model weights,
+    face detection, tracking parameters, and visualization options.
+
+    Returns:
+        Namespace object containing all parsed command-line arguments including
+        video paths, model configurations, detection thresholds, and processing
+        options.
+    """
     parser = argparse.ArgumentParser(description="ASD demo")
 
     parser.add_argument(

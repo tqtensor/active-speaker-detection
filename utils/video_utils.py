@@ -9,6 +9,16 @@ from scipy.io import wavfile
 
 
 def extract_MFCC(file, outPath):
+    """Extracts MFCC features from an audio file and saves them as a numpy array.
+
+    Reads a WAV audio file, computes Mel-Frequency Cepstral Coefficients (MFCC),
+    and saves the resulting feature matrix to a .npy file. The MFCC matrix has
+    shape (N_frames, 13) where 1 second of audio corresponds to 100 frames.
+
+    Args:
+        file: Path to the input WAV audio file.
+        outPath: Directory path where the output .npy file will be saved.
+    """
     # CPU: extract mfcc
     sr, audio = wavfile.read(file)
     mfcc = python_speech_features.mfcc(audio, sr)  # (N_frames, 13)   [1s = 100 frames]
@@ -17,6 +27,24 @@ def extract_MFCC(file, outPath):
 
 
 def extract_video(args):
+    """Extracts video from the source file and saves it as an AVI file.
+
+    Processes the input video using ffmpeg to extract either the full video or
+    a segment based on the args.duration parameter. The output is saved with
+    specified quality settings and frame rate of 25 fps.
+
+    Args:
+        args: Configuration object containing:
+            - videoPath: Path to the input video file.
+            - pyaviPath: Output directory for the extracted video.
+            - duration: Duration in seconds (0 for full video extraction).
+            - start: Start time in seconds for segment extraction.
+            - nDataLoaderThread: Number of threads for ffmpeg processing.
+
+    Raises:
+        ValueError: If start time or duration is negative.
+        RuntimeError: If ffmpeg fails to extract the video.
+    """
     # Extract video
     args.videoFilePath = os.path.join(args.pyaviPath, "video.avi")
     # Extract full video or a segment depending on args.duration
@@ -80,6 +108,21 @@ def extract_video(args):
 
 
 def extract_audio(args):
+    """Extracts audio from the video file and saves it as a WAV file.
+
+    Converts the video file to a mono-channel WAV audio file at 16kHz sample
+    rate using ffmpeg. The audio is extracted from the previously processed
+    video file.
+
+    Args:
+        args: Configuration object containing:
+            - videoFilePath: Path to the input video file.
+            - pyaviPath: Output directory for the extracted audio.
+            - nDataLoaderThread: Number of threads for ffmpeg processing.
+
+    Raises:
+        RuntimeError: If ffmpeg fails to extract the audio.
+    """
     # Extract audio
     args.audioFilePath = os.path.join(args.pyaviPath, "audio.wav")
     try:
@@ -107,6 +150,21 @@ def extract_audio(args):
 
 
 def extract_frames(args):
+    """Extracts individual frames from the video file and saves them as JPEG images.
+
+    Converts the video file into a sequence of JPEG image files using ffmpeg.
+    Each frame is saved with a sequential numeric filename (e.g., 000001.jpg,
+    000002.jpg, etc.).
+
+    Args:
+        args: Configuration object containing:
+            - videoFilePath: Path to the input video file.
+            - pyframesPath: Output directory for the extracted frame images.
+            - nDataLoaderThread: Number of threads for ffmpeg processing.
+
+    Raises:
+        RuntimeError: If ffmpeg fails to extract the frames.
+    """
     # Extract the video frames
     try:
         (

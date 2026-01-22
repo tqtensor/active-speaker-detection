@@ -16,7 +16,7 @@ def nms_(dets, thresh):
         thresh: IoU threshold for suppression.
 
     Returns:
-        np.ndarray: Indices of kept detections.
+        Indices of kept detections.
     """
     x1 = dets[:, 0]
     y1 = dets[:, 1]
@@ -53,12 +53,12 @@ def decode(loc, priors, variances):
     Reverses the encoding applied for offset regression at train time.
 
     Args:
-        loc: Location predictions for loc layers. Shape: [num_priors, 4].
-        priors: Prior boxes in center-offset form. Shape: [num_priors, 4].
+        loc: Location predictions for loc layers with shape [num_priors, 4].
+        priors: Prior boxes in center-offset form with shape [num_priors, 4].
         variances: Variances of priorboxes.
 
     Returns:
-        torch.Tensor: Decoded bounding box predictions.
+        Decoded bounding box predictions.
     """
 
     boxes = torch.cat(
@@ -79,13 +79,13 @@ def nms(boxes, scores, overlap=0.5, top_k=200):
     Prevents detecting too many overlapping bounding boxes for a given object.
 
     Args:
-        boxes: The location preds for the img. Shape: [num_priors, 4].
-        scores: The class pred scores for the img. Shape: [num_priors].
-        overlap: The overlap thresh for suppressing unnecessary boxes.
-        top_k: The maximum number of box preds to consider.
+        boxes: The location predictions for the image with shape [num_priors, 4].
+        scores: The class prediction scores for the image with shape [num_priors].
+        overlap: The overlap threshold for suppressing unnecessary boxes.
+        top_k: The maximum number of box predictions to consider.
 
     Returns:
-        tuple: (keep, count) - The indices of kept boxes and their count.
+        The indices of kept boxes and their count as tuple (keep, count).
     """
 
     keep = scores.new(scores.size(0)).zero_().long()
@@ -146,7 +146,7 @@ def nms(boxes, scores, overlap=0.5, top_k=200):
 class Detect(object):
     """Post-processor for object detection that applies NMS to predictions.
 
-    Args:
+    Attributes:
         num_classes: Number of classes to detect.
         top_k: Maximum number of detections to keep per class.
         nms_thresh: IoU threshold for non-maximum suppression.
@@ -164,6 +164,16 @@ class Detect(object):
         variance=[0.1, 0.2],
         nms_top_k=5000,
     ):
+        """Initializes the Detect post-processor.
+
+        Args:
+            num_classes: Number of classes to detect.
+            top_k: Maximum number of detections to keep per class.
+            nms_thresh: IoU threshold for non-maximum suppression.
+            conf_thresh: Confidence threshold for filtering detections.
+            variance: Prior box variances for decoding predictions.
+            nms_top_k: Maximum detections to consider before NMS.
+        """
         self.num_classes = num_classes
         self.top_k = top_k
         self.nms_thresh = nms_thresh
@@ -172,6 +182,20 @@ class Detect(object):
         self.nms_top_k = nms_top_k
 
     def forward(self, loc_data, conf_data, prior_data):
+        """Applies detection post-processing to network predictions.
+
+        Decodes location predictions, applies confidence thresholding, and
+        performs non-maximum suppression to produce final detections.
+
+        Args:
+            loc_data: Location predictions from the network.
+            conf_data: Confidence predictions from the network.
+            prior_data: Prior boxes (anchors) for decoding predictions.
+
+        Returns:
+            Detection results with shape [batch_size, num_classes, top_k, 5]
+            where the last dimension contains [score, x1, y1, x2, y2].
+        """
         num = loc_data.size(0)
         num_priors = prior_data.size(0)
 
@@ -207,10 +231,11 @@ class Detect(object):
 
 
 class PriorBox(object):
-    """Generates prior boxes (anchors) for object detection.
+    """Generator for prior boxes (anchors) for object detection.
 
-    Args:
-        input_size: Input image size as (height, width).
+    Attributes:
+        imh: Input image height.
+        imw: Input image width.
         feature_maps: List of feature map sizes for each detection layer.
         variance: Variances for encoding/decoding box coordinates.
         min_sizes: Minimum box sizes for each feature map layer.
@@ -227,6 +252,16 @@ class PriorBox(object):
         steps=[4, 8, 16, 32, 64, 128],
         clip=False,
     ):
+        """Initializes the PriorBox generator.
+
+        Args:
+            input_size: Input image size as (height, width).
+            feature_maps: List of feature map sizes for each detection layer.
+            variance: Variances for encoding/decoding box coordinates.
+            min_sizes: Minimum box sizes for each feature map layer.
+            steps: Stride/step size for each feature map layer.
+            clip: Whether to clip prior boxes to [0, 1] range.
+        """
         super(PriorBox, self).__init__()
 
         self.imh = input_size[0]
@@ -239,6 +274,15 @@ class PriorBox(object):
         self.clip = clip
 
     def forward(self):
+        """Generates prior boxes for all feature map layers.
+
+        Creates anchor boxes at each spatial location across all feature maps,
+        with sizes and positions defined by the configured parameters.
+
+        Returns:
+            Prior boxes in center-offset form with shape [num_priors, 4]
+            where each box is [cx, cy, w, h].
+        """
         mean = []
         for k, fmap in enumerate(self.feature_maps):
             feath = fmap[0]

@@ -11,16 +11,20 @@ import tqdm
 
 
 def visualization(tracks, scores, args, speaker_track_indices):
-    """Visualizes active speaker results with bounding boxes and speaking duration counters.
+    """Visualizes active speaker results with bounding boxes and labels.
 
-    Skips frames with multiple speakers if args.ignoreMultiSpeakers is enabled.
+    Creates a video visualization showing detected faces with bounding boxes
+    colored by speaking status. Speaking faces are labeled with their speaker ID
+    and cumulative speaking duration. Frames with multiple simultaneous speakers
+    can be skipped if configured. The output video includes the original audio.
 
     Args:
         tracks: List of track dictionaries containing frame and bounding box data.
         scores: List of per-frame speaking scores per track.
-        args: Arguments containing visualization parameters (pyframesPath, pyaviPath,
-            speakerThresh, ignoreMultiSpeakers, minSpeechLen, nDataLoaderThread).
-        speaker_track_indices: List of track indices that have been identified as speakers.
+        args: Configuration object with visualization parameters including
+            pyframesPath, pyaviPath, speakerThresh, ignoreMultiSpeakers,
+            minSpeechLen, and nDataLoaderThread.
+        speaker_track_indices: Track indices identified as speakers.
     """
     flist = sorted(glob.glob(os.path.join(args.pyframesPath, "*.jpg")))
     faces = [[] for _ in range(len(flist))]
@@ -146,17 +150,23 @@ def visualization(tracks, scores, args, speaker_track_indices):
 
 
 def summarize_tracks(tracks, scores, args, speaker_track_indices):
-    """Creates a JSON summary of speaking intervals for each speaker ID.
+    """Creates a JSON summary of speaking intervals for each speaker.
+
+    Generates a structured summary of all speaking intervals for identified speakers,
+    filtering out intervals shorter than the minimum speech length threshold.
+    Saves the summary to a JSON file and returns the data structure.
 
     Args:
         tracks: List of track dictionaries containing frame and bounding box data.
         scores: List of per-frame speaking scores per track.
-        args: Arguments containing speakerThresh, minSpeechLen, videoName, and pyworkPath.
-        speaker_track_indices: List of track indices that have been identified as speakers.
+        args: Configuration object with speakerThresh, minSpeechLen, videoName,
+            and pyworkPath attributes.
+        speaker_track_indices: Track indices identified as speakers.
 
     Returns:
-        Output dictionary containing video_name, fps, and speakers with their
-        speaking intervals and total speaking time.
+        Dictionary with video_name, fps, and speakers mapping. Each speaker
+        entry contains intervals (with start_time, end_time, duration) and
+        total_speaking_time in seconds.
     """
 
     # Assign compact speaker IDs
@@ -235,20 +245,23 @@ def summarize_tracks(tracks, scores, args, speaker_track_indices):
 
 
 def export_metadata(tracks, scores, args, speaker_track_indices):
-    """Exports frame-centric metadata as human-readable JSON.
+    """Exports comprehensive frame-centric metadata as JSON.
 
-    Creates a comprehensive JSON file with per-frame face detection data,
-    bounding boxes, speaking scores, and speaker identification.
+    Creates a detailed JSON file containing per-frame face detection data
+    including bounding boxes, speaking scores, speaker identification, and
+    cumulative speaking duration. Also includes track-level summaries with
+    statistics for each detected face track.
 
     Args:
         tracks: List of track dictionaries containing frame and bounding box data.
         scores: List of per-frame speaking scores per track.
-        args: Arguments containing pyframesPath, pyworkPath, videoName,
-            speakerThresh, and minSpeechLen.
-        speaker_track_indices: List of track indices that have been identified as speakers.
+        args: Configuration object with pyframesPath, pyworkPath, videoName,
+            speakerThresh, and minSpeechLen attributes.
+        speaker_track_indices: Track indices identified as speakers.
 
     Returns:
-        Output dictionary containing the complete frame-centric metadata.
+        Dictionary containing video metadata, parameters, tracks_summary with
+        per-track statistics, and frames array with detailed per-frame face data.
     """
     flist = sorted(glob.glob(os.path.join(args.pyframesPath, "*.jpg")))
     total_frames = len(flist)

@@ -1,15 +1,3 @@
-r"""Computes active speaker detection performance for the AVA dataset.
-
-Please send any questions about this code to the Google Group ava-dataset-users:
-https://groups.google.com/forum/#!forum/ava-dataset-users
-
-Example usage:
-    python -O get_ava_active_speaker_performance.py \
-    -g testdata/eval.csv \
-    -p testdata/predictions.csv \
-    -v
-"""
-
 from __future__ import absolute_import, division, print_function
 
 import argparse
@@ -97,7 +85,7 @@ def load_csv(filename, column_names):
 
 
 def eq(a, b, tolerance=1e-09):
-    """Returns true if values are approximately equal.
+    """Checks if two values are approximately equal.
 
     Args:
         a: First value to compare.
@@ -105,7 +93,7 @@ def eq(a, b, tolerance=1e-09):
         tolerance: Maximum allowed difference between values.
 
     Returns:
-        True if the absolute difference is within tolerance.
+        True if the absolute difference is within tolerance, False otherwise.
     """
     return abs(a - b) <= tolerance
 
@@ -113,16 +101,16 @@ def eq(a, b, tolerance=1e-09):
 def merge_groundtruth_and_predictions(df_groundtruth, df_predictions):
     """Merges groundtruth and prediction DataFrames.
 
-    Returns a DataFrame merged on uid field and sorted in descending order
-    by score field. Validates that bounding boxes match between groundtruth
-    and predictions.
+    Merges on the uid field and sorts by score in descending order.
+    Validates that bounding boxes match between groundtruth and predictions.
 
     Args:
         df_groundtruth: A DataFrame with groundtruth data.
         df_predictions: A DataFrame with predictions data.
 
     Returns:
-        A merged DataFrame with rows matched on uid column.
+        A merged DataFrame with rows matched on uid column, sorted by
+        prediction score in descending order.
 
     Raises:
         ValueError: If row counts differ, labels are invalid, scores are
@@ -190,7 +178,7 @@ def get_all_positives(df_merged):
         df_merged: Merged DataFrame containing groundtruth labels.
 
     Returns:
-        Count of rows with SPEAKING_AUDIBLE label in groundtruth.
+        The count of rows with SPEAKING_AUDIBLE label in groundtruth.
     """
     return df_merged[df_merged["label_groundtruth"] == "SPEAKING_AUDIBLE"][
         "uid"
@@ -201,7 +189,8 @@ def calculate_precision_recall(df_merged):
     """Calculates precision and recall arrays from merged predictions.
 
     Args:
-        df_merged: Merged DataFrame sorted by prediction score in descending order.
+        df_merged: Merged DataFrame sorted by prediction score in descending
+            order.
 
     Returns:
         A tuple of (precision, recall) numpy arrays.
@@ -237,7 +226,7 @@ def calculate_precision_recall(df_merged):
 
 
 def run_evaluation(groundtruth, predictions):
-    """Runs AVA Active Speaker evaluation and prints average precision result.
+    """Runs AVA Active Speaker evaluation and prints the result.
 
     Args:
         groundtruth: Path or file object for the groundtruth CSV file.
