@@ -13,7 +13,7 @@ import tqdm
 
 from config.args import get_args
 from model.talkNet import talkNet
-from model.yoloFace import run_face_detection, run_face_detection_gpu
+from model.yoloFace import run_face_detection
 from utils.helpers import export_metadata, summarize_tracks, visualization
 from utils.inference_utils import get_speaker_track_indices
 from utils.track_utils import crop_video, extract_audio_only, scene_detect, track_shot
@@ -554,19 +554,12 @@ def main():
     print("\n[1/5] Preprocessing video...")
     extract_video(args)
     extract_audio(args)
+    extract_frames(args)
 
     # Step 2: Face detection
     print("\n[2/5] Detecting faces...")
     scene = scene_detect(args)
-
-    if args.useBatched:
-        # GPU mode: Load video directly to memory, skip frame extraction
-        print("  [GPU Mode] Using GPU-accelerated face detection")
-        faces = run_face_detection_gpu(args, batch_size=args.yoloBatchSize)
-    else:
-        # Standard mode: Extract frames to disk, then detect
-        extract_frames(args)
-        faces = run_face_detection(args, batch_size=args.yoloBatchSize)
+    faces = run_face_detection(args, batch_size=args.yoloBatchSize)
 
     # Step 3: Face tracking
     print("\n[3/5] Tracking faces...")
