@@ -151,8 +151,8 @@ Higher batch sizes improve GPU utilization for face detection:
 - **24GB VRAM**: `--yoloBatchSize 128`
 - **40GB+ VRAM**: `--yoloBatchSize 200`
 
-#### 3. GPU-Accelerated Video Loading
-The pipeline automatically uses `decord` for fast video decoding (2-3x faster than OpenCV). GPU decoding is attempted first with automatic fallback to CPU.
+#### 3. Fast Video Loading
+The pipeline uses PyAV for fast video decoding (faster than OpenCV).
 
 #### 4. Metadata-Only Mode (`--metadataOnly`)
 Skip expensive video visualization when only JSON output is needed:
@@ -181,8 +181,7 @@ Choose between speed and accuracy:
 
 1. **GPU utilization low during TalkNet**: Use `--useBatched` flag
 2. **Out of memory**: Reduce `--yoloBatchSize` and `--talknetBatchSize`
-3. **Slow video loading**: Ensure `decord` is installed (`uv sync`)
-4. **CPU bottleneck**: Increase `--nDataLoaderThread` (up to CPU core count)
+3. **CPU bottleneck**: Increase `--nDataLoaderThread` (up to CPU core count)
 
 ---
 

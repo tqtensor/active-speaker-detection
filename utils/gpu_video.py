@@ -2,15 +2,9 @@
 
 from typing import Tuple
 
+import av
 import numpy as np
 import torch
-
-try:
-    import av
-
-    PYAV_AVAILABLE = True
-except ImportError:
-    PYAV_AVAILABLE = False
 
 
 def decode_video_gpu(video_path: str, device_id: int = 0) -> Tuple[torch.Tensor, bool]:
@@ -27,14 +21,7 @@ def decode_video_gpu(video_path: str, device_id: int = 0) -> Tuple[torch.Tensor,
         Tuple containing frames tensor on GPU with shape (N, H, W, 3) and
         dtype uint8, and boolean indicating if NVDEC was used.
 
-    Raises:
-        ImportError: If PyAV is not installed.
     """
-    if not PYAV_AVAILABLE:
-        raise ImportError(
-            "PyAV is required for GPU video decoding. Install with: uv add av"
-        )
-
     gpu_decode = False
     frames_list = []
 
@@ -84,13 +71,7 @@ def decode_video_cpu_to_gpu(video_path: str, device_id: int = 0) -> torch.Tensor
 
     Returns:
         Frames on GPU with shape (N, H, W, 3) and dtype uint8.
-
-    Raises:
-        ImportError: If PyAV is not installed.
     """
-    if not PYAV_AVAILABLE:
-        raise ImportError("PyAV is required. Install with: uv add av")
-
     frames_list = []
     container = av.open(video_path)
 
@@ -119,13 +100,7 @@ def decode_video_chunked(video_path: str, chunk_size: int = 7500, device_id: int
     Yields:
         Tuple containing chunk index, start frame number, and tensor of
         frames on GPU.
-
-    Raises:
-        ImportError: If PyAV is not installed.
     """
-    if not PYAV_AVAILABLE:
-        raise ImportError("PyAV is required. Install with: uv add av")
-
     container = av.open(video_path)
 
     chunk_idx = 0
@@ -163,13 +138,7 @@ def get_video_info(video_path: str) -> dict:
 
     Returns:
         Dictionary containing num_frames, fps, width, and height.
-
-    Raises:
-        ImportError: If PyAV is not installed.
     """
-    if not PYAV_AVAILABLE:
-        raise ImportError("PyAV is required. Install with: uv add av")
-
     container = av.open(video_path)
     video_stream = container.streams.video[0]
 
