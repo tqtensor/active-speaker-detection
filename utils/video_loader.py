@@ -1,35 +1,31 @@
-"""Fast video loading utilities using decord.
 
-This module provides optimized video loading using decord library which is
-2-3x faster than cv2.VideoCapture for batch frame reading. Falls back to
-cv2 if decord is not available.
-"""
 
 import os
-from typing import Optional
 
 import cv2
 import numpy as np
 
 try:
     from decord import VideoReader, cpu
+
     DECORD_AVAILABLE = True
 except ImportError:
     DECORD_AVAILABLE = False
 
 
 def load_video_features_decord(video_path: str) -> np.ndarray:
-    """Load video and extract face features using decord (2-3x faster).
+    """Loads video and extracts face features using decord.
 
-    Reads all frames at once using batch loading, then processes them
-    to the TalkNet input format (grayscale, 112x112 center crop).
+    Reads all frames at once using batch loading (2-3x faster than cv2),
+    then processes them to the TalkNet input format (grayscale, 112x112
+    center crop).
 
     Args:
         video_path: Path to the video file (.avi).
 
     Returns:
-        numpy.ndarray: Array of shape (N, 112, 112) containing processed
-        grayscale face frames.
+        Array of shape (N, 112, 112) containing processed grayscale face
+        frames.
     """
     if not DECORD_AVAILABLE:
         return load_video_features_cv2(video_path)
@@ -50,16 +46,17 @@ def load_video_features_decord(video_path: str) -> np.ndarray:
 
 
 def load_video_features_cv2(video_path: str) -> np.ndarray:
-    """Load video and extract face features using cv2 (fallback).
+    """Loads video and extracts face features using cv2.
 
-    This is the original implementation, kept for compatibility.
+    This is the original implementation, kept for compatibility when
+    decord is not available.
 
     Args:
         video_path: Path to the video file (.avi).
 
     Returns:
-        numpy.ndarray: Array of shape (N, 112, 112) containing processed
-        grayscale face frames.
+        Array of shape (N, 112, 112) containing processed grayscale face
+        frames.
     """
     video = cv2.VideoCapture(video_path)
     video_feature = []
@@ -71,8 +68,8 @@ def load_video_features_cv2(video_path: str) -> np.ndarray:
             face = cv2.resize(face, (224, 224))
             # Center crop 112x112
             face = face[
-                int(112 - (112 / 2)): int(112 + (112 / 2)),
-                int(112 - (112 / 2)): int(112 + (112 / 2)),
+                int(112 - (112 / 2)) : int(112 + (112 / 2)),
+                int(112 - (112 / 2)) : int(112 + (112 / 2)),
             ]
             video_feature.append(face)
         else:
@@ -82,12 +79,8 @@ def load_video_features_cv2(video_path: str) -> np.ndarray:
     return np.array(video_feature)
 
 
-def preload_video_data(
-    files: list,
-    crop_path: str,
-    use_decord: bool = True
-) -> dict:
-    """Preload all video data into memory for faster inference.
+def preload_video_data(files: list, crop_path: str, use_decord: bool = True) -> dict:
+    """Preloads all video data into memory for faster inference.
 
     Loads all video files upfront so the inference loop doesn't have
     I/O blocking in the hot path.
@@ -98,14 +91,19 @@ def preload_video_data(
         use_decord: Whether to use decord (faster) or cv2 (fallback).
 
     Returns:
-        dict: Mapping of filename (without extension) to video features array.
+        Mapping of filename (without extension) to dict containing 'video'
+        and 'audio' feature arrays.
     """
+    import python_speech_features
     import tqdm
     from scipy.io import wavfile
-    import python_speech_features
 
     preloaded = {}
-    load_func = load_video_features_decord if (use_decord and DECORD_AVAILABLE) else load_video_features_cv2
+    load_func = (
+        load_video_features_decord
+        if (use_decord and DECORD_AVAILABLE)
+        else load_video_features_cv2
+    )
 
     for file in tqdm.tqdm(files, desc="Pre-loading video data"):
         file_name = os.path.splitext(os.path.basename(file))[0]
@@ -120,26 +118,24 @@ def preload_video_data(
             audio, 16000, numcep=13, winlen=0.025, winstep=0.010
         )
 
-        preloaded[file_name] = {
-            'video': video_features,
-            'audio': audio_features
-        }
+        preloaded[file_name] = {"video": video_features, "audio": audio_features}
 
     return preloaded
 
 
 # Check if decord with GPU support is available
 def check_decord_gpu() -> bool:
-    """Check if decord GPU decoding is available.
+    """Checks if decord GPU decoding is available.
 
     Returns:
-        bool: True if GPU decoding is supported, False otherwise.
+        True if GPU decoding is supported, False otherwise.
     """
     if not DECORD_AVAILABLE:
         return False
 
     try:
-        from decord import gpu
+        from decord import gpu  # noqa: F401
+
         return True
     except ImportError:
         return False

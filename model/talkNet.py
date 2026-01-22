@@ -13,7 +13,28 @@ from .loss import lossA, lossAV, lossV
 
 
 class talkNet(nn.Module):
+    """Audio-visual active speaker detection network.
+
+    Implements the TalkNet model for detecting active speakers using both
+    audio and visual features with cross-attention mechanisms.
+
+    Attributes:
+        model: The TalkNet model architecture.
+        lossAV: Audio-visual loss function.
+        lossA: Audio-only loss function.
+        lossV: Visual-only loss function.
+        optim: Adam optimizer for training.
+        scheduler: Learning rate scheduler with step decay.
+    """
+
     def __init__(self, lr=0.0001, lrDecay=0.95, **kwargs):
+        """Initializes the TalkNet network.
+
+        Args:
+            lr: Learning rate for the optimizer.
+            lrDecay: Learning rate decay factor per epoch.
+            **kwargs: Additional keyword arguments.
+        """
         super(talkNet, self).__init__()
         self.model = talkNetModel().cuda()
         self.lossAV = lossAV().cuda()
@@ -30,6 +51,16 @@ class talkNet(nn.Module):
         )
 
     def train_network(self, loader, epoch, **kwargs):
+        """Trains the network for one epoch.
+
+        Args:
+            loader: DataLoader providing training batches of (audio, visual, labels).
+            epoch: Current epoch number.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            Tuple of (average loss, learning rate) for the epoch.
+        """
         self.train()
         self.scheduler.step(epoch - 1)
         index, top1, loss = 0, 0, 0
@@ -67,6 +98,17 @@ class talkNet(nn.Module):
         return loss / num, lr
 
     def evaluate_network(self, loader, evalCsvSave, evalOrig, **kwargs):
+        """Evaluates the network on a validation/test set.
+
+        Args:
+            loader: DataLoader providing evaluation batches of (audio, visual, labels).
+            evalCsvSave: Path to save the evaluation results CSV.
+            evalOrig: Path to the original evaluation CSV with ground truth.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            Mean Average Precision (mAP) score for active speaker detection.
+        """
         self.eval()
         predScores = []
         for audioFeature, visualFeature, labels in tqdm.tqdm(loader):
@@ -107,9 +149,19 @@ class talkNet(nn.Module):
         return mAP
 
     def saveParameters(self, path):
+        """Saves the model parameters to disk.
+
+        Args:
+            path: File path where model state dict will be saved.
+        """
         torch.save(self.state_dict(), path)
 
     def loadParameters(self, path):
+        """Loads model parameters from disk.
+
+        Args:
+            path: File path to the saved model state dict.
+        """
         selfState = self.state_dict()
         loadedState = torch.load(path)
         for name, param in loadedState.items():

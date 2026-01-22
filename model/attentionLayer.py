@@ -4,7 +4,31 @@ from torch.nn import functional as F
 
 
 class attentionLayer(nn.Module):
+    """A transformer-based attention layer with feedforward network.
+
+    Implements a cross-attention mechanism followed by a feedforward network
+    with layer normalization and residual connections.
+
+    Attributes:
+        self_attn: Multi-head attention module for cross-attention.
+        linear1: First linear transformation in the feedforward network.
+        linear2: Second linear transformation in the feedforward network.
+        norm1: Layer normalization after attention.
+        norm2: Layer normalization after feedforward network.
+        dropout: Dropout layer for feedforward network.
+        dropout1: Dropout layer after attention.
+        dropout2: Dropout layer after feedforward network.
+        activation: Activation function (ReLU).
+    """
+
     def __init__(self, d_model, nhead, dropout=0.1):
+        """Initializes the attentionLayer with cross-attention and feedforward components.
+
+        Args:
+            d_model: Dimensionality of the model embeddings.
+            nhead: Number of attention heads.
+            dropout: Dropout probability for regularization.
+        """
         super(attentionLayer, self).__init__()
         self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
 
@@ -20,7 +44,20 @@ class attentionLayer(nn.Module):
         self.activation = F.relu
 
     def forward(self, src, tar):
-        # type: (Tensor, Optional[Tensor], Optional[Tensor]) -> Tensor
+        """Applies cross-attention and feedforward transformation.
+
+        Performs cross-attention from tar (query) to src (key/value), followed
+        by a feedforward network with residual connections and layer normalization.
+
+        Args:
+            src: Source tensor of shape (B, T, C) where B is batch size,
+                T is sequence length, and C is feature dimension.
+            tar: Target tensor of shape (B, T, C) used as query for attention.
+
+        Returns:
+            Transformed tensor of shape (B, T, C) after attention and
+            feedforward processing.
+        """
         src = src.transpose(0, 1)  # B, T, C -> T, B, C
         tar = tar.transpose(0, 1)  # B, T, C -> T, B, C
         src2 = self.self_attn(tar, src, src, attn_mask=None, key_padding_mask=None)[0]

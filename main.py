@@ -1,14 +1,3 @@
-"""Optimized Active Speaker Detection Pipeline.
-
-This pipeline provides GPU-accelerated active speaker detection with:
-1. Decord-based fast video loading (2-3x faster than cv2.VideoCapture)
-2. GPU video decoding when available
-3. GPU face cropping (eliminates intermediate disk I/O)
-4. Batched TalkNet inference option
-
-Expected speedup: 4-10x faster than sequential processing.
-"""
-
 import glob
 import math
 import os
@@ -42,19 +31,56 @@ YOLO_FACE_URLS = {
 
 
 def crop_video_worker(params):
-    """Executes crop_video for parallel processing."""
+    """Executes crop_video for parallel processing.
+
+    Worker function that unpacks parameters and calls crop_video. Designed for
+    use with ProcessPoolExecutor to enable parallel face track cropping.
+
+    Args:
+        params: Tuple of (args, track, crop_path) where args contains pipeline
+            configuration, track is the face track dict, and crop_path is the
+            output directory.
+
+    Returns:
+        Result from crop_video function call.
+    """
     args, track, crop_path = params
     return crop_video(args, track, crop_path)
 
 
 def extract_audio_worker(params):
-    """Executes extract_audio_only for parallel processing (GPU mode)."""
+    """Executes extract_audio_only for parallel processing in GPU mode.
+
+    Worker function for parallel audio extraction when using GPU-based face
+    cropping. Avoids redundant video cropping since GPU path handles it.
+
+    Args:
+        params: Tuple of (args, track, crop_path) where args contains pipeline
+            configuration, track is the face track dict, and crop_path is the
+            output directory.
+
+    Returns:
+        Result from extract_audio_only function call.
+    """
     args, track, crop_path = params
     return extract_audio_only(args, track, crop_path)
 
 
 def download_weights(args):
-    """Download model weights if not present."""
+    """Downloads model weights if not present.
+
+    Downloads TalkNet and YOLO face detection weights from their respective
+    sources. Validates existing YOLO weights by attempting to load them with
+    PyTorch to detect corruption.
+
+    Args:
+        args: Pipeline arguments containing talkNetWeights, yoloFaceWeights,
+            and yoloVariant paths.
+
+    Raises:
+        RuntimeError: If YOLO weights download fails or downloaded weights
+            are corrupted.
+    """
     if not os.path.isfile(args.talkNetWeights):
         os.makedirs(os.path.dirname(args.talkNetWeights), exist_ok=True)
         subprocess.run(
@@ -116,7 +142,15 @@ def download_weights(args):
 
 
 def prepare_paths(args):
-    """Prepare output directories."""
+    """Prepares output directories for the pipeline.
+
+    Locates the video file, creates the output directory structure, and
+    removes any existing output from previous runs to ensure clean state.
+
+    Args:
+        args: Pipeline arguments. Updated in-place with videoPath, savePath,
+            pyaviPath, pyframesPath, pyworkPath, and pycropPath attributes.
+    """
     args.videoPath = glob.glob(os.path.join(args.videoFolder, args.videoName + ".*"))[0]
     args.savePath = os.path.join(args.videoFolder, args.videoName)
     args.pyaviPath = os.path.join(args.savePath, "pyavi")
@@ -133,10 +167,22 @@ def prepare_paths(args):
 
 
 def run_talknet_inference_gpu(allTracks, args):
-    """Run TalkNet inference with GPU-optimized face cropping.
+    """Runs TalkNet inference with GPU-optimized face cropping.
 
-    Uses chunked GPU processing to handle videos of any length without OOM.
-    Falls back to standard processing if GPU cropping is not available.
+    Processes video in memory-aware chunks to avoid GPU OOM errors. Decodes
+    video frames directly on GPU, crops faces in batches, then runs batched
+    TalkNet inference across all tracks and temporal segments.
+
+    Args:
+        allTracks: List of face track dicts, each containing 'frame' and 'bbox'
+            arrays.
+        args: Pipeline arguments containing videoPath, pycropPath, cropScale,
+            talkNetWeights, and talknetBatchSize.
+
+    Returns:
+        Tuple of (vidTracks, scores) where vidTracks is a list of processed
+        track metadata and scores is a list of numpy arrays containing per-frame
+        active speaker scores for each track.
     """
     import python_speech_features
     from scipy.io import wavfile
@@ -428,7 +474,22 @@ def run_talknet_inference_gpu(allTracks, args):
 
 
 def run_talknet_inference_standard(allTracks, args):
-    """Run TalkNet inference with standard processing (parallel video cropping)."""
+    """Runs TalkNet inference with standard processing.
+
+    Uses parallel video cropping via ProcessPoolExecutor, then runs TalkNet
+    inference either in batched or sequential mode based on args.useBatched.
+
+    Args:
+        allTracks: List of face track dicts, each containing 'frame' and 'bbox'
+            arrays.
+        args: Pipeline arguments containing pycropPath, nDataLoaderThread,
+            useBatched, and talknetBatchSize.
+
+    Returns:
+        Tuple of (vidTracks, scores) where vidTracks is a list of processed
+        track metadata and scores is a list of active speaker scores for each
+        track.
+    """
     from utils.inference_utils import evaluate_network, evaluate_network_batched
 
     # Parallel crop_video processing
@@ -461,7 +522,13 @@ def run_talknet_inference_standard(allTracks, args):
 
 
 def main():
-    """Run the active speaker detection pipeline."""
+    """Runs the active speaker detection pipeline.
+
+    Executes the full pipeline including video preprocessing, face detection,
+    face tracking, TalkNet inference, and output generation. Attempts GPU-
+    optimized processing first, falling back to standard mode if GPU operations
+    fail.
+    """
     args = get_args()
 
     # Set yoloFaceWeights based on variant if not explicitly provided

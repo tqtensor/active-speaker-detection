@@ -7,7 +7,26 @@ from .box_utils import Detect, PriorBox
 
 
 class L2Norm(nn.Module):
+    """L2 normalization layer with learnable scaling.
+
+    Normalizes the input tensor along the channel dimension and applies
+    learnable per-channel scaling weights.
+
+    Attributes:
+        n_channels: Number of input channels.
+        gamma: Initial scale value.
+        eps: Small constant for numerical stability.
+        weight: Learnable per-channel scaling parameters.
+    """
+
     def __init__(self, n_channels, scale):
+        """Initializes the instance.
+
+        Args:
+            n_channels: Number of input channels to normalize.
+            scale: Initial scaling factor for the learnable weights.
+        """
+
         super(L2Norm, self).__init__()
         self.n_channels = n_channels
         self.gamma = scale or None
@@ -16,9 +35,20 @@ class L2Norm(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
+        """Initializes the weight parameter to the gamma scale value."""
+
         init.constant_(self.weight, self.gamma)
 
     def forward(self, x):
+        """Applies L2 normalization and learnable scaling to the input.
+
+        Args:
+            x: Input tensor to normalize.
+
+        Returns:
+            L2-normalized tensor with learnable per-channel scaling applied.
+        """
+
         norm = x.pow(2).sum(dim=1, keepdim=True).sqrt() + self.eps
         x = torch.div(x, norm)
         out = self.weight.unsqueeze(0).unsqueeze(2).unsqueeze(3).expand_as(x) * x
@@ -26,7 +56,35 @@ class L2Norm(nn.Module):
 
 
 class S3FDNet(nn.Module):
+    """S3FD (Single Shot Scale-invariant Face Detector) network.
+
+    Implementation of the S3FD face detection architecture based on VGG-16
+    backbone with additional feature extraction layers for multi-scale
+    face detection.
+
+    Attributes:
+        device: Device to run the network on (cuda or cpu).
+        vgg: VGG-16 based feature extraction backbone.
+        L2Norm3_3: L2 normalization for conv3_3 features.
+        L2Norm4_3: L2 normalization for conv4_3 features.
+        L2Norm5_3: L2 normalization for conv5_3 features.
+        extras: Additional convolutional layers for multi-scale features.
+        loc: Localization prediction heads for bounding boxes.
+        conf: Confidence prediction heads for classification.
+        softmax: Softmax activation for confidence scores.
+        detect: Detection layer for post-processing predictions.
+    """
+
     def __init__(self, device="cuda"):
+        """Initializes the instance.
+
+        Sets up the VGG-16 backbone, L2 normalization layers, extra feature
+        layers, and detection heads for multi-scale face detection.
+
+        Args:
+            device: Device to run the network on, either 'cuda' or 'cpu'.
+        """
+
         super(S3FDNet, self).__init__()
         self.device = device
 
@@ -109,6 +167,19 @@ class S3FDNet(nn.Module):
         self.detect = Detect()
 
     def forward(self, x):
+        """Performs forward pass for face detection.
+
+        Extracts multi-scale features from the input image and generates
+        face detection predictions with bounding boxes and confidence scores.
+
+        Args:
+            x: Input image tensor of shape (batch, channels, height, width).
+
+        Returns:
+            Detection results containing predicted bounding boxes and
+            confidence scores for faces at multiple scales.
+        """
+
         size = x.size()[2:]
         sources = list()
         loc = list()

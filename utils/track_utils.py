@@ -12,6 +12,17 @@ from scipy.interpolate import interp1d
 
 
 def scene_detect(args):
+    """Detects scene cuts in the video and saves them to a pickle file.
+
+    Analyzes the video for scene changes using content-based detection.
+    If no scene cuts are detected, treats the entire video as one scene.
+
+    Args:
+        args: Configuration object with videoFilePath and pyworkPath attributes.
+
+    Returns:
+        List of tuples containing (start_timecode, end_timecode) for each scene.
+    """
     # CPU: Scene detection, output is the list of each shot's time duration
     video = open_video(args.videoFilePath)
     sceneManager = SceneManager()
@@ -31,6 +42,20 @@ def scene_detect(args):
 
 
 def bb_intersection_over_union(boxA, boxB, evalCol=False):
+    """Calculates intersection over union (IOU) between two bounding boxes.
+
+    Computes the overlap ratio between two rectangular bounding boxes.
+    Used for tracking faces across consecutive frames.
+
+    Args:
+        boxA: First bounding box as [x1, y1, x2, y2].
+        boxB: Second bounding box as [x1, y1, x2, y2].
+        evalCol: If True, calculates intersection/boxA. If False, calculates
+            standard IOU (intersection/union).
+
+    Returns:
+        Overlap ratio as a float between 0 and 1.
+    """
     # CPU: IOU Function to calculate overlap between two image
     xA = max(boxA[0], boxB[0])
     yA = max(boxA[1], boxB[1])
@@ -47,6 +72,23 @@ def bb_intersection_over_union(boxA, boxB, evalCol=False):
 
 
 def track_shot(args, sceneFaces):
+    """Tracks faces across frames within a scene using IOU-based matching.
+
+    Groups face detections across consecutive frames into continuous tracks
+    by matching bounding boxes. Interpolates missing detections and filters
+    tracks based on length and face size criteria.
+
+    Args:
+        args: Configuration object with numFailedDet, minTrack, and minFaceSize
+            attributes.
+        sceneFaces: List of lists, where each inner list contains face detections
+            for a single frame. Each face is a dict with 'frame' and 'bbox' keys.
+            This list is modified in-place (faces are removed as they're assigned).
+
+    Returns:
+        List of track dictionaries, each containing 'frame' (array of frame indices)
+        and 'bbox' (array of interpolated bounding boxes).
+    """
     # CPU: Face tracking
     iouThres = 0.5  # Minimum IOU between consecutive face detections
     tracks = []
@@ -96,10 +138,20 @@ def track_shot(args, sceneFaces):
 
 
 def extract_audio_only(args, track, cropFile):
-    """Extract only the audio segment for a track (no video cropping).
+    """Extracts audio segment for a face track without video cropping.
 
-    This is used in GPU mode where video cropping is already done on GPU.
-    Much faster than crop_video since it skips all frame reading/writing.
+    Optimized for GPU mode where video cropping is handled separately.
+    Computes smoothed face detection coordinates and extracts the corresponding
+    audio segment from the source audio file.
+
+    Args:
+        args: Configuration object with audioFilePath attribute.
+        track: Track dictionary containing 'frame' and 'bbox' arrays.
+        cropFile: Base path for output files (used for .wav output).
+
+    Returns:
+        Dictionary with 'track' (original track) and 'proc_track' (smoothed
+        detection coordinates with 'x', 'y', 's' keys).
     """
     # Compute smoothed detection coordinates (needed for proc_track)
     dets = {"x": [], "y": [], "s": []}
@@ -135,6 +187,22 @@ def extract_audio_only(args, track, cropFile):
 
 
 def crop_video(args, track, cropFile):
+    """Crops face regions from video frames and extracts corresponding audio.
+
+    Reads video frames, applies smoothing to face bounding boxes, crops and
+    resizes face regions to 224x224, and writes to an AVI file. Also extracts
+    the corresponding audio segment.
+
+    Args:
+        args: Configuration object with pyframesPath, cropScale, audioFilePath,
+            and nDataLoaderThread attributes.
+        track: Track dictionary containing 'frame' and 'bbox' arrays.
+        cropFile: Base path for output files (used for .avi and .wav outputs).
+
+    Returns:
+        Dictionary with 'track' (original track) and 'proc_track' (smoothed
+        detection coordinates with 'x', 'y', 's' keys).
+    """
     # CPU: crop the face clips
     flist = glob.glob(os.path.join(args.pyframesPath, "*.jpg"))  # Read the frames
     flist.sort()

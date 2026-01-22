@@ -2,12 +2,9 @@ import math
 import os
 import sys
 
-import cv2
 import numpy
-import python_speech_features
 import torch
 import tqdm
-from scipy.io import wavfile
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from model.talkNet import talkNet
@@ -18,13 +15,12 @@ def evaluate_network(files, args):
 
     Processes audio-visual files through TalkNet to compute speaking scores.
     Uses multiple duration windows with weighted averaging for robust inference.
-
     This optimized version uses decord for faster video loading and pre-loads
     all data before the inference loop to minimize I/O in the hot path.
 
     Args:
         files: List of file paths to evaluate.
-        args: Arguments containing pycropPath and talkNetWeights.
+        args: Arguments containing pycropPath and talkNetWeights attributes.
 
     Returns:
         List of per-frame speaking scores for each input file.
@@ -51,8 +47,8 @@ def evaluate_network(files, args):
 
         # Get pre-loaded data (no I/O in hot path)
         data = preloaded[fileName]
-        audioFeature = data['audio']
-        videoFeature = data['video']
+        audioFeature = data["audio"]
+        videoFeature = data["video"]
 
         # Align audio and video lengths
         length = min(
@@ -108,14 +104,16 @@ def evaluate_network(files, args):
 def get_speaker_track_indices(scores, args):
     """Identifies tracks with at least one speaking frame above threshold.
 
-    Collects tracks that have any frame speaking (helps identify speakers).
+    Collects track indices that have any frame with speaking activity
+    detected based on the configured threshold. Useful for identifying
+    which tracks contain active speakers.
 
     Args:
         scores: List of per-frame speaking scores per track.
-        args: Arguments containing the speakerThresh value.
+        args: Arguments containing the speakerThresh threshold value.
 
     Returns:
-        Track indices where speaker was detected.
+        List of track indices where speaker was detected.
     """
     speaker_track_indices = []
     for tidx, score in enumerate(scores):
@@ -129,23 +127,25 @@ def get_speaker_track_indices(scores, args):
 
 
 def evaluate_network_batched(files, args, batch_size=16):
-    """Batched TalkNet inference for significant speedup.
+    """Evaluates active speaker detection using batched TalkNet inference.
 
     Processes multiple face tracks in parallel using DataLoader for
     2-3x speedup over sequential processing. Uses decord for fast
-    video loading and pre-loads all data before inference.
+    video loading and pre-loads all data before inference to minimize
+    I/O overhead in the hot path.
 
     Args:
         files: List of file paths to evaluate.
-        args: Arguments containing pycropPath and talkNetWeights.
+        args: Arguments containing pycropPath and talkNetWeights attributes.
         batch_size: Number of track segments to process per batch.
 
     Returns:
         List of per-frame speaking scores for each input file.
     """
     from collections import defaultdict
-    from utils.video_loader import preload_video_data
+
     from utils.dataset import create_dataloader
+    from utils.video_loader import preload_video_data
 
     # Load TalkNet model
     s = talkNet()
@@ -164,8 +164,8 @@ def evaluate_network_batched(files, args, batch_size=16):
         data = preloaded[file_name]
 
         # Align lengths
-        af = data['audio']
-        vf = data['video']
+        af = data["audio"]
+        vf = data["video"]
         length = min(
             (af.shape[0] - af.shape[0] % 4) / 100,
             vf.shape[0] / 25,
@@ -186,7 +186,7 @@ def evaluate_network_batched(files, args, batch_size=16):
             duration=duration,
             batch_size=batch_size,
             num_workers=4,
-            pin_memory=True
+            pin_memory=True,
         )
 
         # Store scores by (track_id, segment_idx)
@@ -194,8 +194,8 @@ def evaluate_network_batched(files, args, batch_size=16):
 
         with torch.no_grad():
             for batch in tqdm.tqdm(loader, desc=f"Duration {duration}s"):
-                videos = batch['videos'].cuda()
-                audios = batch['audios'].cuda()
+                videos = batch["videos"].cuda()
+                audios = batch["audios"].cuda()
 
                 # Forward pass through TalkNet
                 embedA = s.model.forward_audio_frontend(audios)
@@ -206,7 +206,7 @@ def evaluate_network_batched(files, args, batch_size=16):
 
                 # Store scores by track and segment
                 for i, (tid, seg_idx, vid_len) in enumerate(
-                    zip(batch['track_ids'], batch['seg_idxs'], batch['video_lengths'])
+                    zip(batch["track_ids"], batch["seg_idxs"], batch["video_lengths"])
                 ):
                     # Extract only valid scores (up to actual length)
                     score = batch_scores[i]
@@ -241,4 +241,3 @@ def evaluate_network_batched(files, args, batch_size=16):
             final_scores.append(numpy.array([]))
 
     return final_scores
-

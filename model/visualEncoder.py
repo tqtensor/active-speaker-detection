@@ -25,6 +25,13 @@ class ResNetLayer(nn.Module):
     """
 
     def __init__(self, inplanes, outplanes, stride):
+        """Initializes the instance.
+
+        Args:
+            inplanes: Number of input channels.
+            outplanes: Number of output channels.
+            stride: Stride for the first convolution and downsample operation.
+        """
         super(ResNetLayer, self).__init__()
         self.conv1a = nn.Conv2d(
             inplanes, outplanes, kernel_size=3, stride=stride, padding=1, bias=False
@@ -50,6 +57,14 @@ class ResNetLayer(nn.Module):
         return
 
     def forward(self, inputBatch):
+        """Processes the input through two residual blocks.
+
+        Args:
+            inputBatch: Input tensor to be processed through residual blocks.
+
+        Returns:
+            Output tensor after applying two residual blocks with skip connections.
+        """
         batch = F.relu(self.bn1a(self.conv1a(inputBatch)))
         batch = self.conv2a(batch)
         if self.stride == 1:
@@ -76,6 +91,7 @@ class ResNet(nn.Module):
     """
 
     def __init__(self):
+        """Initializes the instance."""
         super(ResNet, self).__init__()
         self.layer1 = ResNetLayer(64, 64, stride=1)
         self.layer2 = ResNetLayer(64, 128, stride=2)
@@ -86,6 +102,14 @@ class ResNet(nn.Module):
         return
 
     def forward(self, inputBatch):
+        """Processes the input through 4 ResNet layers and average pooling.
+
+        Args:
+            inputBatch: Input tensor to be processed through the ResNet architecture.
+
+        Returns:
+            Output tensor after applying 4 ResNet layers and average pooling.
+        """
         batch = self.layer1(inputBatch)
         batch = self.layer2(batch)
         batch = self.layer3(batch)
@@ -105,6 +129,11 @@ class GlobalLayerNorm(nn.Module):
     """
 
     def __init__(self, channel_size):
+        """Initializes the instance.
+
+        Args:
+            channel_size: Number of channels to normalize.
+        """
         super(GlobalLayerNorm, self).__init__()
         self.gamma = nn.Parameter(torch.Tensor(1, channel_size, 1))  # [1, N, 1]
         self.beta = nn.Parameter(torch.Tensor(1, channel_size, 1))  # [1, N, 1]
@@ -115,6 +144,14 @@ class GlobalLayerNorm(nn.Module):
         self.beta.data.zero_()
 
     def forward(self, y):
+        """Applies global layer normalization to the input tensor.
+
+        Args:
+            y: Input tensor to normalize.
+
+        Returns:
+            Normalized tensor with learned affine transformation applied.
+        """
         mean = y.mean(dim=1, keepdim=True).mean(dim=2, keepdim=True)  # [M, 1, 1]
         var = (
             (torch.pow(y - mean, 2)).mean(dim=1, keepdim=True).mean(dim=2, keepdim=True)
@@ -131,6 +168,7 @@ class visualFrontend(nn.Module):
     """
 
     def __init__(self):
+        """Initializes the instance."""
         super(visualFrontend, self).__init__()
         self.frontend3D = nn.Sequential(
             nn.Conv3d(
@@ -149,6 +187,14 @@ class visualFrontend(nn.Module):
         return
 
     def forward(self, inputBatch):
+        """Extracts visual features from video frames.
+
+        Args:
+            inputBatch: Input video frames tensor.
+
+        Returns:
+            Feature tensor of shape (time, batch, 512) containing extracted visual features.
+        """
         inputBatch = inputBatch.transpose(0, 1).transpose(1, 2)
         batchsize = inputBatch.shape[0]
         batch = self.frontend3D(inputBatch)
@@ -175,6 +221,7 @@ class DSConv1d(nn.Module):
     """
 
     def __init__(self):
+        """Initializes the instance."""
         super(DSConv1d, self).__init__()
         self.net = nn.Sequential(
             nn.ReLU(),
@@ -188,6 +235,14 @@ class DSConv1d(nn.Module):
         )
 
     def forward(self, x):
+        """Applies depthwise separable convolution with residual connection.
+
+        Args:
+            x: Input tensor to be processed.
+
+        Returns:
+            Output tensor with residual connection added.
+        """
         out = self.net(x)
         return out + x
 
@@ -200,6 +255,7 @@ class visualTCN(nn.Module):
     """
 
     def __init__(self):
+        """Initializes the instance."""
         super(visualTCN, self).__init__()
         stacks = []
         for x in range(5):
@@ -207,6 +263,14 @@ class visualTCN(nn.Module):
         self.net = nn.Sequential(*stacks)  # Visual Temporal Network V-TCN
 
     def forward(self, x):
+        """Applies temporal convolutional network to visual features.
+
+        Args:
+            x: Input visual features tensor.
+
+        Returns:
+            Temporally modeled visual features.
+        """
         out = self.net(x)
         return out
 
@@ -219,6 +283,7 @@ class visualConv1D(nn.Module):
     """
 
     def __init__(self):
+        """Initializes the instance."""
         super(visualConv1D, self).__init__()
         self.net = nn.Sequential(
             nn.Conv1d(512, 256, 5, stride=1, padding=2),
@@ -228,5 +293,13 @@ class visualConv1D(nn.Module):
         )
 
     def forward(self, x):
+        """Projects visual features to lower dimensional space.
+
+        Args:
+            x: Input visual features of dimension 512.
+
+        Returns:
+            Projected features of dimension 128.
+        """
         out = self.net(x)
         return out
