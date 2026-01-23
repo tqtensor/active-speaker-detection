@@ -1,11 +1,13 @@
 import os
-import sys
-import time
 
 import ffmpeg
 import numpy
 import python_speech_features
 from scipy.io import wavfile
+
+from config.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def extract_MFCC(file, outPath):
@@ -68,7 +70,7 @@ def extract_video(args):
             out, err = stream.run(capture_stdout=True, capture_stderr=True)
 
         except ffmpeg.Error as e:
-            print(f"FFmpeg stderr:\n{e.stderr.decode()}")
+            logger.error(f"FFmpeg failed to extract video: {e.stderr.decode()}")
             raise RuntimeError(f"Failed to extract full video: {e.stderr.decode()}")
     # else extract a segment of the video:
     else:
@@ -98,13 +100,10 @@ def extract_video(args):
             out, err = stream.run(capture_stdout=True, capture_stderr=True)
 
         except ffmpeg.Error as e:
-            print(f"FFmpeg stderr:\n{e.stderr.decode()}")
+            logger.error(f"FFmpeg failed to extract video segment: {e.stderr.decode()}")
             raise RuntimeError(f"Failed to extract video segment: {e.stderr.decode()}")
 
-    sys.stderr.write(
-        time.strftime("%Y-%m-%d %H:%M:%S")
-        + " Extract the video and save in %s \r\n" % (args.videoFilePath)
-    )
+    logger.info(f"Extracted video saved to {args.videoFilePath}")
 
 
 def extract_audio(args):
@@ -141,12 +140,9 @@ def extract_audio(args):
             .run(capture_stdout=True, capture_stderr=True)
         )
     except ffmpeg.Error as e:
-        print(f"FFmpeg stderr:\n{e.stderr.decode()}")
+        logger.error(f"FFmpeg failed to extract audio: {e.stderr.decode()}")
         raise RuntimeError(f"Failed to extract audio: {e.stderr.decode()}")
-    sys.stderr.write(
-        time.strftime("%Y-%m-%d %H:%M:%S")
-        + " Extract the audio and save in %s \r\n" % (args.audioFilePath)
-    )
+    logger.info(f"Extracted audio saved to {args.audioFilePath}")
 
 
 def extract_frames(args):
@@ -174,10 +170,7 @@ def extract_frames(args):
         if args.frameHeight:
             # Scale to specified height, maintaining aspect ratio (-1 for width)
             input_stream = input_stream.filter("scale", -1, args.frameHeight)
-            sys.stderr.write(
-                time.strftime("%Y-%m-%d %H:%M:%S")
-                + f" Downscaling frames to height={args.frameHeight}px\r\n"
-            )
+            logger.info(f"Downscaling frames to height={args.frameHeight}px")
 
         (
             input_stream.output(
@@ -191,9 +184,6 @@ def extract_frames(args):
             .run(capture_stdout=True, capture_stderr=True)
         )
     except ffmpeg.Error as e:
-        print(f"FFmpeg stderr:\n{e.stderr.decode()}")
+        logger.error(f"FFmpeg failed to extract frames: {e.stderr.decode()}")
         raise RuntimeError(f"Failed to extract frames: {e.stderr.decode()}")
-    sys.stderr.write(
-        time.strftime("%Y-%m-%d %H:%M:%S")
-        + " Extract the frames and save in %s \r\n" % (args.pyframesPath)
-    )
+    logger.info(f"Extracted frames saved to {args.pyframesPath}")

@@ -7,9 +7,12 @@ import torch
 import torch.nn as nn
 import tqdm
 
+from config.logging_config import get_logger
 from model.talkNetModel import talkNetModel
 
 from .loss import lossA, lossAV, lossV
+
+logger = get_logger(__name__)
 
 
 class talkNet(nn.Module):
@@ -44,11 +47,10 @@ class talkNet(nn.Module):
         self.scheduler = torch.optim.lr_scheduler.StepLR(
             self.optim, step_size=1, gamma=lrDecay
         )
-        print(
-            time.strftime("%m-%d %H:%M:%S")
-            + " Model para number = %.2f"
-            % (sum(param.numel() for param in self.model.parameters()) / 1024 / 1024)
+        model_params_mb = (
+            sum(param.numel() for param in self.model.parameters()) / 1024 / 1024
         )
+        logger.info(f"Model para number = {model_params_mb:.2f}")
 
     def train_network(self, loader, epoch, **kwargs):
         """Trains the network for one epoch.
@@ -169,12 +171,11 @@ class talkNet(nn.Module):
             if name not in selfState:
                 name = name.replace("module.", "")
                 if name not in selfState:
-                    print("%s is not in the model." % origName)
+                    logger.warning(f"{origName} is not in the model.")
                     continue
             if selfState[name].size() != loadedState[origName].size():
-                sys.stderr.write(
-                    "Wrong parameter length: %s, model: %s, loaded: %s"
-                    % (origName, selfState[name].size(), loadedState[origName].size())
+                logger.warning(
+                    f"Wrong parameter length: {origName}, model: {selfState[name].size()}, loaded: {loadedState[origName].size()}"
                 )
                 continue
             selfState[name].copy_(param)

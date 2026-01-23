@@ -4,6 +4,10 @@ import av
 import numpy as np
 import torch
 
+from config.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 def decode_video_gpu(video_path: str, device_id: int = 0) -> Tuple[torch.Tensor, bool]:
     """Decodes video directly to GPU memory using NVDEC if available.
@@ -33,10 +37,10 @@ def decode_video_gpu(video_path: str, device_id: int = 0) -> Tuple[torch.Tensor,
             },
         )
         gpu_decode = True
-        print(f"  ✓ Using NVDEC hardware acceleration on GPU {device_id}")
+        logger.info(f"Using NVDEC hardware acceleration on GPU {device_id}")
     except Exception as e:
         # Fall back to CPU decoding
-        print(f"  ⚠ NVDEC not available ({type(e).__name__}), using CPU decode")
+        logger.warning(f"NVDEC not available ({type(e).__name__}), using CPU decode")
         container = av.open(video_path)
 
     # Decode all frames
