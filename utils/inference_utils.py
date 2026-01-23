@@ -7,7 +7,10 @@ import torch
 import tqdm
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config.logging_config import get_logger
 from model.talkNet import talkNet
+
+logger = get_logger(__name__)
 
 
 def evaluate_network(files, args):
@@ -30,7 +33,7 @@ def evaluate_network(files, args):
     # GPU: active speaker detection by pretrained TalkNet
     s = talkNet()
     s.loadParameters(args.talkNetWeights)
-    sys.stderr.write("Model %s loaded from previous state! \r\n" % args.talkNetWeights)
+    logger.info(f"Model {args.talkNetWeights} loaded from previous state!")
     s.eval()
 
     # Pre-load all video/audio data for faster inference loop
@@ -150,7 +153,7 @@ def evaluate_network_batched(files, args, batch_size=16):
     # Load TalkNet model
     s = talkNet()
     s.loadParameters(args.talkNetWeights)
-    sys.stderr.write("Model %s loaded from previous state! \r\n" % args.talkNetWeights)
+    logger.info(f"Model {args.talkNetWeights} loaded from previous state!")
     s.eval()
 
     # Pre-load all video/audio data

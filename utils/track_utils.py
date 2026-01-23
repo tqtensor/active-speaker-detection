@@ -1,7 +1,6 @@
 import glob
 import os
 import pickle
-import sys
 
 import cv2
 import ffmpeg
@@ -9,6 +8,10 @@ import numpy
 from scenedetect import ContentDetector, SceneManager, open_video
 from scipy import signal
 from scipy.interpolate import interp1d
+
+from config.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def scene_detect(args):
@@ -35,9 +38,7 @@ def scene_detect(args):
         sceneList = [(video.base_timecode, video.current_timecode)]
     with open(savePath, "wb") as fil:
         pickle.dump(sceneList, fil)
-        sys.stderr.write(
-            "%s - scenes detected %d\n" % (args.videoFilePath, len(sceneList))
-        )
+        logger.info(f"{args.videoFilePath} - scenes detected {len(sceneList)}")
     return sceneList
 
 

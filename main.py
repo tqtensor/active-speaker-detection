@@ -12,6 +12,7 @@ import torch
 import tqdm
 
 from config.args import get_args
+from config.logging_config import get_logger, log_section, setup_logging
 from model.talkNet import talkNet
 from model.yoloFace import run_face_detection
 from utils.helpers import export_metadata, summarize_tracks, visualization
@@ -20,6 +21,8 @@ from utils.track_utils import crop_video, extract_audio_only, scene_detect, trac
 from utils.video_utils import extract_audio, extract_frames, extract_video
 
 warnings.filterwarnings("ignore")
+
+logger = get_logger(__name__)
 
 # YOLO variant download URLs from YapaLab/yolo-face releases
 YOLO_FACE_URLS = {
@@ -104,16 +107,16 @@ def download_weights(args):
             # PyTorch 2.6+ requires weights_only=False for YOLO models
             # Safe because weights come from official ultralytics/YOLO repository
             torch.load(args.yoloFaceWeights, map_location="cpu", weights_only=False)
-            print(f"  YOLO weights validated: {args.yoloFaceWeights}")
+            logger.info(f"YOLO weights validated: {args.yoloFaceWeights}")
         except Exception as e:
-            print(f"  Existing YOLO weights corrupted ({e}), re-downloading...")
+            logger.warning(f"Existing YOLO weights corrupted ({e}), re-downloading...")
             need_download = True
             os.remove(args.yoloFaceWeights)
 
     if need_download:
         os.makedirs(os.path.dirname(args.yoloFaceWeights), exist_ok=True)
         yolo_url = YOLO_FACE_URLS[args.yoloVariant]
-        print(f"  Downloading YOLO weights from {yolo_url}...")
+        logger.info(f"Downloading YOLO weights from {yolo_url}...")
         result = subprocess.run(
             [
                 "wget",
@@ -135,7 +138,7 @@ def download_weights(args):
             # PyTorch 2.6+ requires weights_only=False for YOLO models
             # Safe because weights come from official ultralytics/YOLO repository
             torch.load(args.yoloFaceWeights, map_location="cpu", weights_only=False)
-            print("  YOLO weights downloaded and validated successfully")
+            logger.info("YOLO weights downloaded and validated successfully")
         except Exception as e:
             os.remove(args.yoloFaceWeights)
             raise RuntimeError(f"Downloaded YOLO weights are corrupted: {e}")
@@ -193,7 +196,7 @@ def run_talknet_inference_gpu(allTracks, args):
         get_video_info,
     )
 
-    print("\n[GPU Mode] Chunked video processing...")
+    logger.info("[GPU Mode] Chunked video processing...")
     video_info = get_video_info(args.videoPath)
     total_frames = video_info["num_frames"]
 
@@ -215,9 +218,11 @@ def run_talknet_inference_gpu(allTracks, args):
     chunk_size = max(50, min(max_frames_in_gpu, 500))  # Between 50-500 frames
 
     num_chunks = (total_frames + chunk_size - 1) // chunk_size
-    print(f"  Video: {total_frames} frames, {num_chunks} chunks of {chunk_size} frames")
-    print(
-        f"  GPU memory: {free_memory_mb:.0f} MB free / {total_memory_mb:.0f} MB total, {frame_size_mb:.2f} MB/frame (with float32)"
+    logger.info(
+        f"Video: {total_frames} frames, {num_chunks} chunks of {chunk_size} frames"
+    )
+    logger.debug(
+        f"GPU memory: {free_memory_mb:.0f} MB free / {total_memory_mb:.0f} MB total, {frame_size_mb:.2f} MB/frame (with float32)"
     )
 
     # Process video in chunks, accumulating cropped faces
@@ -266,7 +271,7 @@ def run_talknet_inference_gpu(allTracks, args):
         torch.cuda.empty_cache()
 
     # Combine cropped faces from all chunks (KEEP ON CPU to avoid OOM)
-    print("[GPU Mode] Combining cropped faces (on CPU)...")
+    logger.info("[GPU Mode] Combining cropped faces (on CPU)...")
     combined_cropped = {}
     for track_idx, crop_list in all_cropped_tracks.items():
         combined_cropped[track_idx] = torch.cat(crop_list, dim=0)  # Stay on CPU
@@ -287,7 +292,7 @@ def run_talknet_inference_gpu(allTracks, args):
     # Free the RGB crops
     del combined_cropped
 
-    print(f"  Prepared {len(talknet_features)} tracks (on CPU)")
+    logger.info(f"Prepared {len(talknet_features)} tracks (on CPU)")
 
     # Load TalkNet model
     s = talkNet()
@@ -298,7 +303,7 @@ def run_talknet_inference_gpu(allTracks, args):
     weights = [3, 3, 2, 1, 1, 1]
 
     # Step 1: Extract audio for all tracks in parallel (skip video cropping - GPU already has it)
-    print("[GPU Mode] Extracting audio in parallel...")
+    logger.info("[GPU Mode] Extracting audio in parallel...")
     num_workers = min(args.nDataLoaderThread, len(allTracks))
     audio_params = [
         (args, track, os.path.join(args.pycropPath, "%05d" % ii))
@@ -318,7 +323,7 @@ def run_talknet_inference_gpu(allTracks, args):
             vidTracks[idx] = future.result()
 
     # Step 2: Prepare TalkNet features (combine GPU video features + extracted audio)
-    print("[GPU Mode] Preparing TalkNet features...")
+    logger.info("[GPU Mode] Preparing TalkNet features...")
     all_track_data = []
     for track_idx in range(len(allTracks)):
         crop_path = os.path.join(args.pycropPath, "%05d" % track_idx)
@@ -352,7 +357,7 @@ def run_talknet_inference_gpu(allTracks, args):
         )
 
     # Step 2: Batched TalkNet inference across all tracks
-    print(
+    logger.info(
         f"[GPU Mode] Running batched TalkNet inference (batch_size={args.talknetBatchSize})..."
     )
 
@@ -531,6 +536,9 @@ def main():
     """
     args = get_args()
 
+    # Initialize logging
+    setup_logging(args)
+
     # Set yoloFaceWeights based on variant if not explicitly provided
     if args.yoloFaceWeights is None:
         args.yoloFaceWeights = f"./weights/yolo/yolov11{args.yoloVariant}-face.pt"
@@ -538,55 +546,53 @@ def main():
     download_weights(args)
     prepare_paths(args)
 
-    print("=" * 60)
-    print("ACTIVE SPEAKER DETECTION PIPELINE")
-    print("=" * 60)
+    log_section(logger, "ACTIVE SPEAKER DETECTION PIPELINE")
 
     # Clear any residual GPU memory from previous runs
     if torch.cuda.is_available():
         try:
             torch.cuda.empty_cache()
         except RuntimeError as e:
-            print(f"  Warning: Could not clear GPU cache ({e})")
-            print("  Try running: pkill -9 python && nvidia-smi")
+            logger.warning(f"Could not clear GPU cache ({e})")
+            logger.warning("Try running: pkill -9 python && nvidia-smi")
 
     # Step 1: Preprocess
-    print("\n[1/5] Preprocessing video...")
+    logger.info("[1/5] Preprocessing video...")
     extract_video(args)
     extract_audio(args)
     extract_frames(args)
 
     # Step 2: Face detection
-    print("\n[2/5] Detecting faces...")
+    logger.info("[2/5] Detecting faces...")
     scene = scene_detect(args)
     faces = run_face_detection(args, batch_size=args.yoloBatchSize)
 
     # Step 3: Face tracking
-    print("\n[3/5] Tracking faces...")
+    logger.info("[3/5] Tracking faces...")
     allTracks = []
     for shot in scene:
         if shot[1].frame_num - shot[0].frame_num >= args.minTrack:
             allTracks.extend(
                 track_shot(args, faces[shot[0].frame_num : shot[1].frame_num])
             )
-    print(f"  Found {len(allTracks)} face tracks")
+    logger.info(f"Found {len(allTracks)} face tracks")
 
     if not allTracks:
-        print("No face tracks found!")
+        logger.error("No face tracks found!")
         return
 
     # Clean up GPU memory from YOLO before TalkNet
-    print("\n  Clearing GPU memory from face detection...")
+    logger.info("Clearing GPU memory from face detection...")
     torch.cuda.empty_cache()
     torch.cuda.synchronize()
 
     # Step 4: TalkNet inference (choose GPU or standard mode)
-    print("\n[4/5] Running TalkNet inference...")
+    logger.info("[4/5] Running TalkNet inference...")
     try:
         # Try GPU-optimized path
         vidTracks, scores = run_talknet_inference_gpu(allTracks, args)
     except Exception as e:
-        print(f"  GPU mode failed ({e}), falling back to standard mode...")
+        logger.error(f"GPU mode failed ({e}), falling back to standard mode...")
         vidTracks, scores = run_talknet_inference_standard(allTracks, args)
 
     # Save results
@@ -596,7 +602,7 @@ def main():
         pickle.dump(scores, f)
 
     # Step 5: Output
-    print("\n[5/5] Generating output...")
+    logger.info("[5/5] Generating output...")
     speaker_track_indices = get_speaker_track_indices(scores, args)
 
     if not args.metadataOnly:
@@ -605,9 +611,7 @@ def main():
     summarize_tracks(vidTracks, scores, args, speaker_track_indices)
     export_metadata(vidTracks, scores, args, speaker_track_indices)
 
-    print("\n" + "=" * 60)
-    print("PIPELINE COMPLETE")
-    print("=" * 60)
+    log_section(logger, "PIPELINE COMPLETE")
 
 
 if __name__ == "__main__":

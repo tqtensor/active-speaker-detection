@@ -1,13 +1,15 @@
 import glob
 import json
 import os
-import sys
-import time
 
 import cv2
 import ffmpeg
 import numpy
 import tqdm
+
+from config.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def visualization(tracks, scores, args, speaker_track_indices):
@@ -236,10 +238,7 @@ def summarize_tracks(tracks, scores, args, speaker_track_indices):
     with open(output_path, "w") as f:
         json.dump(output, f, indent=4)
 
-    sys.stderr.write(
-        time.strftime("%Y-%m-%d %H:%M:%S")
-        + f" Speaking intervals saved to {output_path}\n"
-    )
+    logger.info(f"Speaking intervals saved to {output_path}")
 
     return output
 
@@ -374,8 +373,6 @@ def export_metadata(tracks, scores, args, speaker_track_indices):
     with open(output_path, "w") as f:
         json.dump(output, f, indent=2)
 
-    sys.stderr.write(
-        time.strftime("%Y-%m-%d %H:%M:%S") + f" Frame metadata saved to {output_path}\n"
-    )
+    logger.info(f"Frame metadata saved to {output_path}")
 
     return output

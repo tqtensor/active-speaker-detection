@@ -119,5 +119,23 @@ def get_args():
         default=16,
         help="Batch size for TalkNet inference when using --useBatched",
     )
+    parser.add_argument(
+        "--logLevel",
+        type=str,
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging verbosity level (default: INFO)",
+    )
+    parser.add_argument(
+        "--logFile",
+        type=str,
+        default=None,
+        help="Path to log file (default: None, console only)",
+    )
+    parser.add_argument(
+        "--noColor",
+        action="store_true",
+        help="Disable colored console output",
+    )
 
     return parser.parse_args()
