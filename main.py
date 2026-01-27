@@ -225,8 +225,9 @@ def run_talknet_inference_gpu(allTracks, args):
         f"GPU memory: {free_memory_mb:.0f} MB free / {total_memory_mb:.0f} MB total, {frame_size_mb:.2f} MB/frame (with float32)"
     )
 
-    # Process video in chunks, accumulating cropped faces
-    all_cropped_tracks = {}  # {track_idx: list of (T, 3, 224, 224) tensors}
+    # Process video in chunks, converting to TalkNet features immediately
+    # to avoid accumulating full-resolution RGB float32 crops in RAM (~12x smaller)
+    all_talknet_chunks = {}  # {track_idx: list of (T, 112, 112) tensors}
 
     for chunk_idx, start_frame, frames in tqdm.tqdm(
         decode_video_chunked(args.videoPath, chunk_size=chunk_size, device_id=0),
@@ -259,38 +260,36 @@ def run_talknet_inference_gpu(allTracks, args):
                 frames, chunk_tracks, crop_size=224, crop_scale=args.cropScale
             )
 
-            # Store results mapped to original track indices
+            # Convert to grayscale 112x112 TalkNet features immediately
+            # rather than storing full RGB 224x224 float32 crops
+            crop_offset = (224 - 112) // 2
             for local_idx, track_idx in enumerate(chunk_track_indices):
                 if local_idx in chunk_cropped:
-                    if track_idx not in all_cropped_tracks:
-                        all_cropped_tracks[track_idx] = []
-                    all_cropped_tracks[track_idx].append(chunk_cropped[local_idx].cpu())
+                    crops = chunk_cropped[local_idx]
+                    gray = (
+                        0.299 * crops[:, 0] + 0.587 * crops[:, 1] + 0.114 * crops[:, 2]
+                    )
+                    gray = gray[
+                        :,
+                        crop_offset : crop_offset + 112,
+                        crop_offset : crop_offset + 112,
+                    ]
+                    if track_idx not in all_talknet_chunks:
+                        all_talknet_chunks[track_idx] = []
+                    all_talknet_chunks[track_idx].append(gray.cpu())
+            del chunk_cropped
 
         # Free GPU memory for this chunk
         del frames
         torch.cuda.empty_cache()
 
-    # Combine cropped faces from all chunks (KEEP ON CPU to avoid OOM)
-    logger.info("[GPU Mode] Combining cropped faces (on CPU)...")
-    combined_cropped = {}
-    for track_idx, crop_list in all_cropped_tracks.items():
-        combined_cropped[track_idx] = torch.cat(crop_list, dim=0)  # Stay on CPU
-
-    # Free the chunk lists
-    del all_cropped_tracks
-    torch.cuda.empty_cache()
-
-    # Prepare TalkNet features (convert to grayscale 112x112) - on CPU
+    # Combine TalkNet features from all chunks
+    logger.info("[GPU Mode] Combining TalkNet features (on CPU)...")
     talknet_features = {}
-    for track_idx, crops in combined_cropped.items():
-        # Convert RGB to grayscale: 0.299*R + 0.587*G + 0.114*B
-        gray = 0.299 * crops[:, 0] + 0.587 * crops[:, 1] + 0.114 * crops[:, 2]
-        # Center crop from 224 to 112
-        start = (224 - 112) // 2
-        talknet_features[track_idx] = gray[:, start : start + 112, start : start + 112]
+    for track_idx, chunk_list in all_talknet_chunks.items():
+        talknet_features[track_idx] = torch.cat(chunk_list, dim=0)
 
-    # Free the RGB crops
-    del combined_cropped
+    del all_talknet_chunks
 
     logger.info(f"Prepared {len(talknet_features)} tracks (on CPU)")
 
