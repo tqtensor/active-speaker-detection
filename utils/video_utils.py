@@ -146,31 +146,31 @@ def extract_audio(args):
 
 
 def extract_frames(args):
-    """Extracts individual frames from the video file and saves them as WebP images.
+    """Extracts individual frames from the video file and saves them as JPEG images.
 
-    Converts the video file into a sequence of WebP image files using ffmpeg.
-    Each frame is saved with a sequential numeric filename (e.g., 000001.webp,
-    000002.webp, etc.) at original resolution. WebP provides 25-34% smaller
-    files than JPEG at equivalent quality.
+    Converts the video file into a sequence of JPEG image files using ffmpeg.
+    Each frame is saved with a sequential numeric filename (e.g., 000001.jpg,
+    000002.jpg, etc.) at original resolution to preserve coordinate consistency
+    with the source video.
 
     Args:
         args: Configuration object containing:
             - videoFilePath: Path to the input video file.
             - pyframesPath: Output directory for the extracted frame images.
             - nDataLoaderThread: Number of threads for ffmpeg processing.
-            - webpQuality: WebP quality (0-100, higher=better).
+            - jpegQscale: JPEG quality scale (1-31, lower=better). Default: 2.
 
     Raises:
         RuntimeError: If ffmpeg fails to extract the frames.
     """
-    # Extract the video frames as WebP for better compression
+    # Extract the video frames as JPEG at original resolution
+    # JPEG is ~24x faster than WebP for encoding with negligible I/O difference
     try:
         (
             ffmpeg.input(args.videoFilePath)
             .output(
-                os.path.join(args.pyframesPath, "%06d.webp"),
-                vcodec="libwebp",
-                quality=str(args.webpQuality),
+                os.path.join(args.pyframesPath, "%06d.jpg"),
+                qscale=str(args.jpegQscale),
                 f="image2",  # Image muxer
                 threads=args.nDataLoaderThread,
             )
@@ -181,6 +181,4 @@ def extract_frames(args):
     except ffmpeg.Error as e:
         logger.error(f"FFmpeg failed to extract frames: {e.stderr.decode()}")
         raise RuntimeError(f"Failed to extract frames: {e.stderr.decode()}")
-    logger.info(
-        f"Extracted frames (WebP quality={args.webpQuality}) saved to {args.pyframesPath}"
-    )
+    logger.info(f"Extracted frames saved to {args.pyframesPath}")

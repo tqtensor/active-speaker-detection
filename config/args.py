@@ -98,11 +98,10 @@ def get_args():
         help="Batch size for YOLO face detection (increase for more GPU utilization)",
     )
     parser.add_argument(
-        "--webpQuality",
+        "--jpegQscale",
         type=int,
-        default=80,
-        help="WebP quality for extracted frames (0-100, higher=better). "
-        "WebP is 25-34%% smaller than JPEG at equivalent quality. Default: 80",
+        default=2,
+        help="JPEG quality scale for extracted frames (1-31, lower=better quality). Default: 2",
     )
     parser.add_argument(
         "--metadataOnly",

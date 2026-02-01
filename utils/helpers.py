@@ -28,7 +28,7 @@ def visualization(tracks, scores, args, speaker_track_indices):
             minSpeechLen, and nDataLoaderThread.
         speaker_track_indices: Track indices identified as speakers.
     """
-    flist = sorted(glob.glob(os.path.join(args.pyframesPath, "*.webp")))
+    flist = sorted(glob.glob(os.path.join(args.pyframesPath, "*.jpg")))
     faces = [[] for _ in range(len(flist))]
 
     # Create a mapping from track indices to speaker IDs (tracks with speaking frames)
@@ -262,7 +262,7 @@ def export_metadata(tracks, scores, args, speaker_track_indices):
         Dictionary containing video metadata, parameters, tracks_summary with
         per-track statistics, and frames array with detailed per-frame face data.
     """
-    flist = sorted(glob.glob(os.path.join(args.pyframesPath, "*.webp")))
+    flist = sorted(glob.glob(os.path.join(args.pyframesPath, "*.jpg")))
     total_frames = len(flist)
 
     # Create a mapping from track indices to speaker IDs

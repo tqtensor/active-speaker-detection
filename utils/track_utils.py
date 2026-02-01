@@ -205,7 +205,7 @@ def crop_video(args, track, cropFile):
         detection coordinates with 'x', 'y', 's' keys).
     """
     # CPU: crop the face clips
-    flist = glob.glob(os.path.join(args.pyframesPath, "*.webp"))  # Read the frames
+    flist = glob.glob(os.path.join(args.pyframesPath, "*.jpg"))  # Read the frames
     flist.sort()
     vOut = cv2.VideoWriter(
         cropFile + "t.avi", cv2.VideoWriter_fourcc(*"XVID"), 25, (224, 224)
