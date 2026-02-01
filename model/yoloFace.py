@@ -27,7 +27,7 @@ def run_face_detection_single(model, frames_path, video_file_path, work_path):
 
     Args:
         model: YOLO model instance for face detection.
-        frames_path: Directory path containing frame images (.jpg files).
+        frames_path: Directory path containing frame images (.webp files).
         video_file_path: Video file path used for progress reporting.
         work_path: Working directory where results will be saved.
 
@@ -36,7 +36,7 @@ def run_face_detection_single(model, frames_path, video_file_path, work_path):
         detections for the corresponding frame. Each detection contains
         frame index, bounding box coordinates, and confidence score.
     """
-    flist = sorted(glob.glob(os.path.join(frames_path, "*.jpg")))
+    flist = sorted(glob.glob(os.path.join(frames_path, "*.webp")))
     dets = []
 
     for fidx, fname in enumerate(flist):
@@ -79,7 +79,7 @@ def run_face_detection(args, batch_size=32):
     """
     model = YOLO(args.yoloFaceWeights)
 
-    flist = sorted(glob.glob(os.path.join(args.pyframesPath, "*.jpg")))
+    flist = sorted(glob.glob(os.path.join(args.pyframesPath, "*.webp")))
     dets = [None] * len(flist)  # Pre-allocate to maintain frame order
 
     # Process frames in batches

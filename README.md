@@ -67,7 +67,7 @@ uv run python main.py --videoName video --videoFolder workdir --yoloVariant m
 workdir/
 └── video/
     ├── pyavi/                 # extracted audio + output video
-    ├── pyframes/              # all video frames
+    ├── pyframes/              # all video frames (WebP format)
     ├── pycrop/                # cropped face clips
     └── pywork/
         ├── tracks.pckl        # face tracks
@@ -97,6 +97,7 @@ workdir/
 | `--speakerThresh`       | `0.6`     | Speaker detection confidence threshold                                    |
 | `--minSpeechLen`        | `0.25`    | Minimum speech duration (seconds) to count as speaking                    |
 | `--ignoreMultiSpeakers` | `False`   | Skip frames with multiple speakers in visualization                       |
+| `--webpQuality`         | `80`      | WebP quality for extracted frames (0-100, higher=better)                  |
 | `--metadataOnly`        | `False`   | Skip video visualization, only produce JSON metadata                      |
 | `--useBatched`          | `False`   | Use batched TalkNet inference (2-3x faster)                               |
 | `--talknetBatchSize`    | `16`      | Batch size for TalkNet when using `--useBatched`                          |
@@ -151,31 +152,25 @@ Higher batch sizes improve GPU utilization for face detection:
 - **24GB VRAM**: `--yoloBatchSize 128`
 - **40GB+ VRAM**: `--yoloBatchSize 200`
 
-#### 3. Fast Video Loading
+#### 3. WebP Frame Extraction (`--webpQuality`)
+Extracted frames are saved as WebP instead of JPEG, reducing disk I/O by 25-34% at equivalent quality. Adjust quality with `--webpQuality` (default: 80).
+
+#### 4. Fast Video Loading
 The pipeline uses PyAV for fast video decoding (faster than OpenCV).
 
-#### 4. Metadata-Only Mode (`--metadataOnly`)
+#### 5. Metadata-Only Mode (`--metadataOnly`)
 Skip expensive video visualization when only JSON output is needed:
 
 ```bash
 uv run python main.py --videoName video --videoFolder workdir --metadataOnly
 ```
 
-#### 5. YOLO Variant Selection (`--yoloVariant`)
+#### 6. YOLO Variant Selection (`--yoloVariant`)
 Choose between speed and accuracy:
 - `n` (nano): Fastest, good for clear faces
 - `s` (small): Balanced
 - `m` (medium): Better accuracy
 - `l` (large): Best accuracy, slower
-
-### GPU Memory Requirements
-
-| Video Length | Frames @25fps | Est. GPU Memory | Recommended GPU |
-| ------------ | ------------- | --------------- | --------------- |
-| 5 min        | 7,500         | ~6 GB           | Any modern GPU  |
-| 10 min       | 15,000        | ~12 GB          | L4 (24GB) ✓     |
-| 30 min       | 45,000        | ~36 GB          | A100 (40GB)     |
-| 60 min       | 90,000        | ~72 GB          | Needs chunking  |
 
 ### Troubleshooting Performance
 
