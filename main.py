@@ -3,6 +3,7 @@ import math
 import os
 import pickle
 import subprocess
+import time
 import warnings
 from shutil import rmtree
 
@@ -488,13 +489,17 @@ def main():
 
     # Step 1: Preprocess
     logger.info("[1/5] Preprocessing video...")
+    t = time.perf_counter()
     extract_video(args)
     extract_audio(args)
+    logger.info(f"[timing] preprocess {time.perf_counter()-t:.1f}s")
 
     # Step 2: Face detection
     logger.info("[2/5] Detecting faces...")
+    t = time.perf_counter()
     scene = scene_detect(args)
     faces = run_face_detection(args, batch_size=args.yoloBatchSize)
+    logger.info(f"[timing] detect {time.perf_counter()-t:.1f}s")
 
     # Step 3: Face tracking
     logger.info("[3/5] Tracking faces...")
@@ -517,7 +522,9 @@ def main():
 
     # Step 4: ASD inference (GPU-optimized, model chosen via --asdModel)
     logger.info(f"[4/5] Running {args.asdModel} inference...")
+    t = time.perf_counter()
     vidTracks, scores = run_asd_inference_gpu(allTracks, args)
+    logger.info(f"[timing] asd {time.perf_counter()-t:.1f}s")
 
     # Save results
     with open(os.path.join(args.pyworkPath, "tracks.pckl"), "wb") as f:
