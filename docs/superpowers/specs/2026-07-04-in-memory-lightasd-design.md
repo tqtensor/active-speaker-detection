@@ -6,12 +6,12 @@
 
 ## Decisions (locked)
 
-| Question | Decision |
-|----------|----------|
-| Use case | Offline batch, faster (not real-time streaming) |
-| Model | Swap TalkNet → **Light-ASD** (Junhua-Liao/Light-ASD, CVPR 2023, MIT) |
-| Legacy disk path | **Remove entirely** — no fallback to `extract_frames` / `crop_video` / standard TalkNet |
-| Default weights | **`pretrain_AVA.model`** (AVA-ActiveSpeaker). `finetuning_TalkSet.model` available via config for talking-head/meeting footage |
+| Question         | Decision                                                                                                                                     |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Use case         | Offline batch, faster (not real-time streaming)                                                                                              |
+| Model            | Swap TalkNet → **Light-ASD** (Junhua-Liao/Light-ASD, CVPR 2023, MIT)                                                                         |
+| Legacy disk path | **Remove entirely** — no fallback to `extract_frames` / `crop_video` / standard TalkNet                                                      |
+| Default weights  | **`pretrain_AVA_CVPR.model`** (AVA-ActiveSpeaker, 4.18 MB). `finetuning_TalkSet.model` available via config for talking-head/meeting footage |
 
 ## Problem
 
@@ -66,12 +66,11 @@ Ship this first with TalkNet still active so scores can be proven byte-identical
 
 - **Vendor** Light-ASD model source into `model/lightASD/` (MIT-licensed). Add a thin wrapper `lightASD()` mirroring the `talkNet()` interface used at the call site: `loadParameters(path)`, `.eval()`, and `.model.forward_visual_frontend`, `.model.forward_audio_frontend`, `.model.forward_audio_visual_backend`, plus `.lossAV.forward`.
 - **Weights**: add `pretrain_AVA.model` download to `download_weights` (source: Junhua-Liao/Light-ASD `weight/`), path configurable. Keep TalkNet download only if TalkNet still selectable (see Phase-1 vs final).
-- **Forward-site edits** in the (renamed) inference function — only tensor reshaping + one dropped call:
-  - Visual: `(B, T, 112, 112)` → unsqueeze channel → `(B, 1, T, 112, 112)`.
-  - Audio: `(B, T*4, 13)` → `(B, 1, 13, T*4)`.
-  - **Drop** `forward_cross_attention` — Light-ASD fuses inside `forward_audio_visual_backend(audio_embed, visual_embed)`.
-  - `lossAV.forward(out, labels=None)` unchanged.
-- **Normalization check (must verify before wiring):** read Light-ASD's visual encoder to confirm it normalizes 0–255 grayscale internally (as TalkNet does with `(x/255 - 0.4161)/0.1688`). If it expects pre-normalized input, adjust the grayscale prep accordingly.
+- **Forward-site edits** in the (renamed) inference function — confirmed against Light-ASD source (`model/Model.py`), the input tensors are **byte-identical to TalkNet**:
+  - Visual input stays `(B, T, 112, 112)` raw 0–255 grayscale. `forward_visual_frontend` does the `view(B,1,T,W,H)` and `(x/255 - 0.4161)/0.1688` normalization **internally** — same constants as this repo's TalkNet. No reshape, no external normalization.
+  - Audio input stays `(B, T*4, 13)`. `forward_audio_frontend` does `unsqueeze(1).transpose(2,3)` internally.
+  - The **only** change vs. the TalkNet call sequence: **drop** `forward_cross_attention`. Light-ASD fuses by addition inside `forward_audio_visual_backend(audio_embed, visual_embed)`.
+  - `lossAV.forward(out, labels=None)` returns a per-frame numpy score array (compatible with the existing `.extend(score)` aggregation). Note Light-ASD's `lossAV` uses `FC(128,2)` vs. TalkNet's `FC(256,2)`; both are internal to their own vendored `loss.py`.
 - **Keep** the `durationSet = [1,2,3,4,5,6]` / `weights = [3,3,2,1,1,1]` multi-scale aggregation — Light-ASD's demo uses the same trick and downstream scoring expects per-frame scores.
 
 ## Phase 3 — Config, cleanup, testing
@@ -86,13 +85,13 @@ Ship this first with TalkNet still active so scores can be proven byte-identical
 
 ## Components & responsibilities
 
-| Unit | Does | Depends on |
-|------|------|-----------|
-| `run_face_detection` (rewritten) | in-memory decode → YOLO → `dets` | `gpu_video.decode_video_chunked`, ultralytics |
-| global-MFCC helper | one MFCC from `audio.wav`, per-track slicing | `python_speech_features`, `scipy.io.wavfile` |
-| `crop_faces_gpu` (unchanged) | grayscale 112×112 features from in-memory frames | `gpu_crop` |
-| `lightASD` wrapper (new) | TalkNet-shaped interface over Light-ASD | vendored `model/lightASD/` |
-| inference driver (renamed from `run_talknet_inference_gpu`) | tie crops+MFCC → Light-ASD forward → scores | above |
+| Unit                                                        | Does                                             | Depends on                                    |
+| ----------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------- |
+| `run_face_detection` (rewritten)                            | in-memory decode → YOLO → `dets`                 | `gpu_video.decode_video_chunked`, ultralytics |
+| global-MFCC helper                                          | one MFCC from `audio.wav`, per-track slicing     | `python_speech_features`, `scipy.io.wavfile`  |
+| `crop_faces_gpu` (unchanged)                                | grayscale 112×112 features from in-memory frames | `gpu_crop`                                    |
+| `lightASD` wrapper (new)                                    | TalkNet-shaped interface over Light-ASD          | vendored `model/lightASD/`                    |
+| inference driver (renamed from `run_talknet_inference_gpu`) | tie crops+MFCC → Light-ASD forward → scores      | above                                         |
 
 ## Risks
 
