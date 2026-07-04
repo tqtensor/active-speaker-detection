@@ -176,8 +176,8 @@ def prepare_paths(args):
     os.makedirs(args.pycropPath)
 
 
-def run_talknet_inference_gpu(allTracks, args):
-    """Runs TalkNet inference with GPU-optimized face cropping.
+def run_asd_inference_gpu(allTracks, args):
+    """Runs ASD inference with GPU-optimized face cropping.
 
     Processes video in memory-aware chunks to avoid GPU OOM errors. Decodes
     video frames directly on GPU, crops faces in batches, then runs batched
@@ -310,9 +310,17 @@ def run_talknet_inference_gpu(allTracks, args):
 
     logger.info(f"Prepared {len(talknet_features)} tracks (on CPU)")
 
-    # Load TalkNet model
-    s = talkNet()
-    s.loadParameters(args.talkNetWeights)
+    # Load the selected ASD model
+    if args.asdModel == "lightasd":
+        from model.lightASD import lightASD
+
+        s = lightASD()
+        s.loadParameters(args.lightAsdWeights)
+        use_cross_attention = False
+    else:
+        s = talkNet()
+        s.loadParameters(args.talkNetWeights)
+        use_cross_attention = True
     s.eval()
 
     durationSet = [1, 2, 3, 4, 5, 6]
@@ -413,21 +421,19 @@ def run_talknet_inference_gpu(allTracks, args):
                 # Forward pass
                 embedA = s.model.forward_audio_frontend(inputA)
                 embedV = s.model.forward_visual_frontend(inputV)
-                embedA, embedV = s.model.forward_cross_attention(embedA, embedV)
+                if use_cross_attention:
+                    embedA, embedV = s.model.forward_cross_attention(embedA, embedV)
                 out = s.model.forward_audio_visual_backend(embedA, embedV)
                 scores = s.lossAV.forward(out, labels=None)
 
-                # Store scores per segment
+                # Normalize scores to a per-sample list of per-frame arrays.
+                scores_np = numpy.asarray(scores).reshape(len(batch), -1)
                 for i, (track_idx, seg_idx, audio_seg, _) in enumerate(batch):
                     # Trim score to actual segment length (not padded length)
                     actual_frames = (
                         audio_seg.shape[0] // 4
                     )  # MFCC frames to score frames
-                    seg_score = (
-                        scores[i][:actual_frames]
-                        if isinstance(scores[i], list)
-                        else [scores[i]]
-                    )
+                    seg_score = scores_np[i][:actual_frames].tolist()
                     segment_scores[(track_idx, seg_idx)] = seg_score
 
         # Aggregate scores for each track
@@ -581,12 +587,7 @@ def main():
 
     # Step 4: TalkNet inference (choose GPU or standard mode)
     logger.info("[4/5] Running TalkNet inference...")
-    try:
-        # Try GPU-optimized path
-        vidTracks, scores = run_talknet_inference_gpu(allTracks, args)
-    except Exception as e:
-        logger.error(f"GPU mode failed ({e}), falling back to standard mode...")
-        vidTracks, scores = run_talknet_inference_standard(allTracks, args)
+    vidTracks, scores = run_asd_inference_gpu(allTracks, args)
 
     # Save results
     with open(os.path.join(args.pyworkPath, "tracks.pckl"), "wb") as f:
