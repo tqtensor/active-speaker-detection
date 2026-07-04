@@ -290,9 +290,14 @@ def export_metadata(tracks, scores, args, speaker_track_indices):
         speaker_id = speaker_tracks_id_map.get(tidx, None)
 
         for fidx, frame_num in enumerate(frame_indices):
-            # Compute smoothed score (5-frame window)
-            s = score[max(fidx - 2, 0) : min(fidx + 3, len(score) - 1)]
-            smoothed_score = float(numpy.mean(s))
+            # Compute smoothed score (5-frame window). A track with no valid
+            # crops has an empty score array; guard against IndexError/NaN
+            # from indexing or averaging an empty slice.
+            if len(score) == 0:
+                smoothed_score = 0.0
+            else:
+                s = score[max(fidx - 2, 0) : min(fidx + 3, len(score) - 1)]
+                smoothed_score = float(numpy.mean(s)) if len(s) > 0 else 0.0
 
             is_speaking = smoothed_score >= args.speakerThresh
 
@@ -319,7 +324,10 @@ def export_metadata(tracks, scores, args, speaker_track_indices):
                 "bbox": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
                 "center": {"x": round(center_x, 2), "y": round(center_y, 2)},
                 "size": round(half_size, 2),
-                "raw_score": round(float(score[min(fidx, len(score) - 1)]), 3),
+                "raw_score": round(
+                    float(score[min(fidx, len(score) - 1)]) if len(score) > 0 else 0.0,
+                    3,
+                ),
                 "smoothed_score": round(smoothed_score, 3),
                 "is_speaking": is_speaking,
                 "speaking_duration": round(
@@ -340,8 +348,10 @@ def export_metadata(tracks, scores, args, speaker_track_indices):
 
         speaking_frames = 0
         for fidx in range(len(frame_indices)):
+            if len(score) == 0:
+                continue
             s = score[max(fidx - 2, 0) : min(fidx + 3, len(score) - 1)]
-            if numpy.mean(s) >= args.speakerThresh:
+            if len(s) > 0 and numpy.mean(s) >= args.speakerThresh:
                 speaking_frames += 1
 
         tracks_summary.append(
@@ -352,7 +362,9 @@ def export_metadata(tracks, scores, args, speaker_track_indices):
                 "total_frames": len(frame_indices),
                 "speaking_frames": speaking_frames,
                 "speaking_ratio": round(speaking_frames / len(frame_indices), 3),
-                "avg_score": round(float(numpy.mean(score)), 3),
+                "avg_score": round(float(numpy.mean(score)), 3)
+                if len(score) > 0
+                else 0.0,
             }
         )
 

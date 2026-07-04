@@ -2,7 +2,6 @@ import os
 import pickle
 
 import numpy
-
 from ultralytics import YOLO
 
 from config.logging_config import get_logger
@@ -34,7 +33,12 @@ def run_face_detection(args, batch_size=32):
     model = YOLO(args.yoloFaceWeights)
 
     num_frames = get_video_info(args.videoFilePath)["num_frames"]
-    dets = [None] * num_frames
+    # PyAV container metadata for num_frames can be wrong (missing/low/0) for
+    # some inputs. Accumulate detections keyed by the ACTUAL decoded frame
+    # index rather than pre-sizing a list, so a metadata/decode mismatch
+    # can't cause an IndexError mid-run.
+    dets_by_frame = {}
+    max_fidx = -1
 
     for _chunk_idx, start_frame, frames in decode_video_chunked(
         args.videoFilePath, chunk_size=max(batch_size, 256), device_id=0
@@ -50,7 +54,7 @@ def run_face_detection(args, batch_size=32):
             results = model.predict(batch_imgs, conf=0.7, iou=0.5, verbose=False)
             for i, result in enumerate(results):
                 fidx = start_frame + b + i
-                dets[fidx] = [
+                dets_by_frame[fidx] = [
                     {
                         "frame": fidx,
                         "bbox": box.xyxy.cpu().numpy().tolist()[0],
@@ -58,9 +62,13 @@ def run_face_detection(args, batch_size=32):
                     }
                     for box in result.boxes
                 ]
+                max_fidx = max(max_fidx, fidx)
 
-    # Any frame the decoder skipped stays an empty detection list.
-    dets = [d if d is not None else [] for d in dets]
+    # Build the ordered list, covering both the metadata frame count and any
+    # actual decoded index beyond it. Any frame with no detections (either
+    # skipped by the decoder, or beyond the metadata count) stays an empty list.
+    total = max(num_frames, max_fidx + 1)
+    dets = [dets_by_frame.get(i, []) for i in range(total)]
 
     with open(os.path.join(args.pyworkPath, "faces.pckl"), "wb") as fil:
         pickle.dump(dets, fil)
