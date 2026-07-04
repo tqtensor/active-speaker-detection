@@ -17,7 +17,7 @@ from model.talkNet import talkNet
 from model.yoloFace import run_face_detection
 from utils.helpers import export_metadata, summarize_tracks, visualization
 from utils.inference_utils import get_speaker_track_indices
-from utils.track_utils import crop_video, extract_audio_only, scene_detect, track_shot
+from utils.track_utils import crop_video, scene_detect, track_shot
 from utils.video_utils import extract_audio, extract_video
 
 warnings.filterwarnings("ignore")
@@ -49,24 +49,6 @@ def crop_video_worker(params):
     """
     args, track, crop_path = params
     return crop_video(args, track, crop_path)
-
-
-def extract_audio_worker(params):
-    """Executes extract_audio_only for parallel processing in GPU mode.
-
-    Worker function for parallel audio extraction when using GPU-based face
-    cropping. Avoids redundant video cropping since GPU path handles it.
-
-    Args:
-        params: Tuple of (args, track, crop_path) where args contains pipeline
-            configuration, track is the face track dict, and crop_path is the
-            output directory.
-
-    Returns:
-        Result from extract_audio_only function call.
-    """
-    args, track, crop_path = params
-    return extract_audio_only(args, track, crop_path)
 
 
 def download_weights(args):
@@ -185,14 +167,24 @@ def run_talknet_inference_gpu(allTracks, args):
         track metadata and scores is a list of numpy arrays containing per-frame
         active speaker scores for each track.
     """
-    import python_speech_features
-    from scipy.io import wavfile
-
+    from utils.audio_features import (
+        compute_global_mfcc,
+        compute_proc_track,
+        slice_track_mfcc,
+    )
     from utils.gpu_crop import crop_faces_gpu
     from utils.gpu_video import (
         decode_video_chunked,
         get_video_info,
     )
+
+    # One MFCC for the whole clip; sliced per track below (no per-track wav I/O).
+    global_mfcc = compute_global_mfcc(args.audioFilePath)
+
+    # proc_track (smoothed centers/size) needed by visualization/metadata.
+    vidTracks = [
+        {"track": track, "proc_track": compute_proc_track(track)} for track in allTracks
+    ]
 
     logger.info("[GPU Mode] Chunked video processing...")
     video_info = get_video_info(args.videoPath)
@@ -299,42 +291,20 @@ def run_talknet_inference_gpu(allTracks, args):
     durationSet = [1, 2, 3, 4, 5, 6]
     weights = [3, 3, 2, 1, 1, 1]
 
-    # Step 1: Extract audio for all tracks in parallel (skip video cropping - GPU already has it)
-    logger.info("[GPU Mode] Extracting audio in parallel...")
-    num_workers = min(args.nDataLoaderThread, len(allTracks))
-    audio_params = [
-        (args, track, os.path.join(args.pycropPath, "%05d" % ii))
-        for ii, track in enumerate(allTracks)
-    ]
-
-    vidTracks = [None] * len(allTracks)
-    with ProcessPoolExecutor(max_workers=num_workers) as executor:
-        future_to_idx = {
-            executor.submit(extract_audio_worker, params): idx
-            for idx, params in enumerate(audio_params)
-        }
-        for future in tqdm.tqdm(
-            as_completed(future_to_idx), total=len(allTracks), desc="Extracting audio"
-        ):
-            idx = future_to_idx[future]
-            vidTracks[idx] = future.result()
-
-    # Step 2: Prepare TalkNet features (combine GPU video features + extracted audio)
+    # Step 1: Prepare TalkNet features (combine GPU video features + sliced audio)
     logger.info("[GPU Mode] Preparing TalkNet features...")
     all_track_data = []
     for track_idx in range(len(allTracks)):
-        crop_path = os.path.join(args.pycropPath, "%05d" % track_idx)
-
         if track_idx not in talknet_features:
             all_track_data.append(None)
             continue
 
         videoFeature = talknet_features[track_idx].numpy()  # Already on CPU
 
-        # Load audio features
-        _, audio = wavfile.read(crop_path + ".wav")
-        audioFeature = python_speech_features.mfcc(
-            audio, 16000, numcep=13, winlen=0.025, winstep=0.010
+        # Slice the global MFCC to this track's frame range (no disk I/O)
+        track_frames = numpy.array(allTracks[track_idx]["frame"])
+        audioFeature = slice_track_mfcc(
+            global_mfcc, int(track_frames[0]), int(track_frames[-1])
         )
 
         # Align lengths
