@@ -11,7 +11,7 @@ pytestmark = pytest.mark.skipif(
 
 def _prep_video(tmp_path):
     """Runs extract_video/extract_audio into tmp_path, returns args stub."""
-    from utils.video_utils import extract_video, extract_audio
+    from utils.video_utils import extract_audio, extract_video
 
     os.makedirs(tmp_path / "pyavi", exist_ok=True)
     args = types.SimpleNamespace(
