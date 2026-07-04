@@ -1,4 +1,3 @@
-import numpy
 import python_speech_features
 from scipy import signal
 from scipy.io import wavfile
