@@ -118,3 +118,6 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# Light-ASD weights are auto-downloaded by download_weights (do not commit the binary)
+weights/lightasd/
