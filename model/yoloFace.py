@@ -1,6 +1,8 @@
 import os
 import pickle
 
+import numpy
+
 from ultralytics import YOLO
 
 from config.logging_config import get_logger
@@ -37,8 +39,10 @@ def run_face_detection(args, batch_size=32):
     for _chunk_idx, start_frame, frames in decode_video_chunked(
         args.videoFilePath, chunk_size=max(batch_size, 256), device_id=0
     ):
-        # (N,H,W,3) uint8 RGB on GPU -> CPU numpy, RGB->BGR to match cv2.imread
-        chunk = frames.cpu().numpy()[:, :, :, ::-1]
+        # (N,H,W,3) uint8 RGB on GPU -> CPU numpy, RGB->BGR to match cv2.imread.
+        # ascontiguousarray removes the negative stride from the ::-1 reversal
+        # so Ultralytics' torch.from_numpy preprocessing does not fail.
+        chunk = numpy.ascontiguousarray(frames.cpu().numpy()[:, :, :, ::-1])
         del frames
 
         for b in range(0, len(chunk), batch_size):
