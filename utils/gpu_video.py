@@ -155,6 +155,22 @@ def get_video_info(video_path: str) -> dict:
     return info
 
 
+def decode_video_frames_bgr(video_path: str):
+    """Yields decoded frames as BGR uint8 numpy arrays (cv2 convention).
+
+    Args:
+        video_path: Path to the video file.
+
+    Yields:
+        (frame_index, ndarray[H,W,3] uint8 BGR).
+    """
+    container = av.open(video_path)
+    for idx, frame in enumerate(container.decode(video=0)):
+        rgb = frame.to_ndarray(format="rgb24")
+        yield idx, rgb[:, :, ::-1].copy()
+    container.close()
+
+
 def estimate_gpu_memory_mb(
     num_frames: int, height: int = 720, width: int = 1280
 ) -> float:

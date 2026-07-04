@@ -1,4 +1,3 @@
-import glob
 import json
 import os
 
@@ -24,12 +23,14 @@ def visualization(tracks, scores, args, speaker_track_indices):
         tracks: List of track dictionaries containing frame and bounding box data.
         scores: List of per-frame speaking scores per track.
         args: Configuration object with visualization parameters including
-            pyframesPath, pyaviPath, speakerThresh, ignoreMultiSpeakers,
+            videoFilePath, pyaviPath, speakerThresh, ignoreMultiSpeakers,
             minSpeechLen, and nDataLoaderThread.
         speaker_track_indices: Track indices identified as speakers.
     """
-    flist = sorted(glob.glob(os.path.join(args.pyframesPath, "*.jpg")))
-    faces = [[] for _ in range(len(flist))]
+    from utils.gpu_video import decode_video_frames_bgr, get_video_info
+
+    total_frames = get_video_info(args.videoFilePath)["num_frames"]
+    faces = [[] for _ in range(total_frames)]
 
     # Create a mapping from track indices to speaker IDs (tracks with speaking frames)
     speaker_tracks_id_map = {
@@ -77,8 +78,8 @@ def visualization(tracks, scores, args, speaker_track_indices):
                 }
             )
 
-    firstImage = cv2.imread(flist[0])
-    fw, fh = firstImage.shape[1], firstImage.shape[0]
+    info = get_video_info(args.videoFilePath)
+    fw, fh = info["width"], info["height"]
     vOut = cv2.VideoWriter(
         os.path.join(args.pyaviPath, "video_only.avi"),
         cv2.VideoWriter_fourcc(*"XVID"),
@@ -89,9 +90,9 @@ def visualization(tracks, scores, args, speaker_track_indices):
     # Define color mapping for speaking and non-speaking
     colorDict = {0: 0, 1: 255}
 
-    for fidx, fname in tqdm.tqdm(enumerate(flist), total=len(flist)):
-        image = cv2.imread(fname)
-
+    for fidx, image in tqdm.tqdm(
+        decode_video_frames_bgr(args.videoFilePath), total=total_frames
+    ):
         # Check if there are any speaking faces in the current frame
         speaking_faces = [face for face in faces[fidx] if face["speaking"]]
 
@@ -254,7 +255,7 @@ def export_metadata(tracks, scores, args, speaker_track_indices):
     Args:
         tracks: List of track dictionaries containing frame and bounding box data.
         scores: List of per-frame speaking scores per track.
-        args: Configuration object with pyframesPath, pyworkPath, videoName,
+        args: Configuration object with videoFilePath, pyworkPath, videoName,
             speakerThresh, and minSpeechLen attributes.
         speaker_track_indices: Track indices identified as speakers.
 
@@ -262,8 +263,9 @@ def export_metadata(tracks, scores, args, speaker_track_indices):
         Dictionary containing video metadata, parameters, tracks_summary with
         per-track statistics, and frames array with detailed per-frame face data.
     """
-    flist = sorted(glob.glob(os.path.join(args.pyframesPath, "*.jpg")))
-    total_frames = len(flist)
+    from utils.gpu_video import get_video_info
+
+    total_frames = get_video_info(args.videoFilePath)["num_frames"]
 
     # Create a mapping from track indices to speaker IDs
     speaker_tracks_id_map = {
