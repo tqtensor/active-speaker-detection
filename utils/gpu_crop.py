@@ -76,21 +76,28 @@ def crop_faces_gpu(
 def extract_talknet_features_gpu(cropped_faces: torch.Tensor) -> torch.Tensor:
     """Converts cropped faces to TalkNet input format on GPU.
 
-    TalkNet expects grayscale 112x112 center-cropped face images.
+    TalkNet expects grayscale 112x112 center-cropped face images in the
+    [0, 255] range (both the Light-ASD and TalkNet visual frontends apply
+    their own `/255` normalization internally). ``cropped_faces`` coming from
+    ``crop_faces_gpu`` is in [0, 1], so the luminance here is rescaled back to
+    [0, 255] to match what the frontends expect.
 
     Args:
-        cropped_faces: Tensor of shape (T, 3, 224, 224) on GPU.
+        cropped_faces: Tensor of shape (T, 3, 224, 224) on GPU, values in
+            [0, 1].
 
     Returns:
-        Tensor of shape (T, 112, 112), grayscale and center-cropped.
+        Tensor of shape (T, 112, 112), grayscale (range [0, 255]) and
+        center-cropped.
     """
     # Convert RGB to grayscale: 0.299*R + 0.587*G + 0.114*B
-    # Input is (T, 3, H, W)
+    # Input is (T, 3, H, W) in [0, 1]; rescale to [0, 255] for the model
+    # frontends, which expect raw pixel values (they divide by 255 themselves).
     gray = (
         0.299 * cropped_faces[:, 0]
         + 0.587 * cropped_faces[:, 1]
         + 0.114 * cropped_faces[:, 2]
-    )
+    ) * 255.0
 
     # Center crop from 224 to 112
     start = (224 - 112) // 2

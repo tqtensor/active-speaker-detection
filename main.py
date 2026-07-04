@@ -179,7 +179,7 @@ def run_asd_inference_gpu(allTracks, args):
         compute_proc_track,
         slice_track_mfcc,
     )
-    from utils.gpu_crop import crop_faces_gpu
+    from utils.gpu_crop import crop_faces_gpu, extract_talknet_features_gpu
     from utils.gpu_video import (
         decode_video_chunked,
         get_video_info,
@@ -259,18 +259,10 @@ def run_asd_inference_gpu(allTracks, args):
 
             # Convert to grayscale 112x112 TalkNet features immediately
             # rather than storing full RGB 224x224 float32 crops
-            crop_offset = (224 - 112) // 2
             for local_idx, track_idx in enumerate(chunk_track_indices):
                 if local_idx in chunk_cropped:
                     crops = chunk_cropped[local_idx]
-                    gray = (
-                        0.299 * crops[:, 0] + 0.587 * crops[:, 1] + 0.114 * crops[:, 2]
-                    )
-                    gray = gray[
-                        :,
-                        crop_offset : crop_offset + 112,
-                        crop_offset : crop_offset + 112,
-                    ]
+                    gray = extract_talknet_features_gpu(crops)
                     if track_idx not in all_talknet_chunks:
                         all_talknet_chunks[track_idx] = []
                     all_talknet_chunks[track_idx].append(gray.cpu())
@@ -492,14 +484,14 @@ def main():
     t = time.perf_counter()
     extract_video(args)
     extract_audio(args)
-    logger.info(f"[timing] preprocess {time.perf_counter()-t:.1f}s")
+    logger.info(f"[timing] preprocess {time.perf_counter() - t:.1f}s")
 
     # Step 2: Face detection
     logger.info("[2/5] Detecting faces...")
     t = time.perf_counter()
     scene = scene_detect(args)
     faces = run_face_detection(args, batch_size=args.yoloBatchSize)
-    logger.info(f"[timing] detect {time.perf_counter()-t:.1f}s")
+    logger.info(f"[timing] detect {time.perf_counter() - t:.1f}s")
 
     # Step 3: Face tracking
     logger.info("[3/5] Tracking faces...")
@@ -524,7 +516,7 @@ def main():
     logger.info(f"[4/5] Running {args.asdModel} inference...")
     t = time.perf_counter()
     vidTracks, scores = run_asd_inference_gpu(allTracks, args)
-    logger.info(f"[timing] asd {time.perf_counter()-t:.1f}s")
+    logger.info(f"[timing] asd {time.perf_counter() - t:.1f}s")
 
     # Save results
     with open(os.path.join(args.pyworkPath, "tracks.pckl"), "wb") as f:
