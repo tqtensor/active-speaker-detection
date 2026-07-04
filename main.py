@@ -18,7 +18,7 @@ from model.yoloFace import run_face_detection
 from utils.helpers import export_metadata, summarize_tracks, visualization
 from utils.inference_utils import get_speaker_track_indices
 from utils.track_utils import crop_video, extract_audio_only, scene_detect, track_shot
-from utils.video_utils import extract_audio, extract_frames, extract_video
+from utils.video_utils import extract_audio, extract_video
 
 warnings.filterwarnings("ignore")
 
@@ -152,19 +152,17 @@ def prepare_paths(args):
 
     Args:
         args: Pipeline arguments. Updated in-place with videoPath, savePath,
-            pyaviPath, pyframesPath, pyworkPath, and pycropPath attributes.
+            pyaviPath, pyworkPath, and pycropPath attributes.
     """
     args.videoPath = glob.glob(os.path.join(args.videoFolder, args.videoName + ".*"))[0]
     args.savePath = os.path.join(args.videoFolder, args.videoName)
     args.pyaviPath = os.path.join(args.savePath, "pyavi")
-    args.pyframesPath = os.path.join(args.savePath, "pyframes")
     args.pyworkPath = os.path.join(args.savePath, "pywork")
     args.pycropPath = os.path.join(args.savePath, "pycrop")
 
     if os.path.exists(args.savePath):
         rmtree(args.savePath)
     os.makedirs(args.pyaviPath)
-    os.makedirs(args.pyframesPath)
     os.makedirs(args.pyworkPath)
     os.makedirs(args.pycropPath)
 
@@ -559,7 +557,6 @@ def main():
     logger.info("[1/5] Preprocessing video...")
     extract_video(args)
     extract_audio(args)
-    extract_frames(args)
 
     # Step 2: Face detection
     logger.info("[2/5] Detecting faces...")
