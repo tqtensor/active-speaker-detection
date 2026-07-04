@@ -30,6 +30,14 @@ dev = [
   "toml-sort>=0.24.2"
 ]
 
+[tool.ruff]
+extend-exclude = [
+  "model/lightASD/Classifier.py",
+  "model/lightASD/Encoder.py",
+  "model/lightASD/Model.py",
+  "model/lightASD/loss.py"
+]
+
 [tool.uv]
 extra-index-url = ["https://download.pytorch.org/whl/cu124"]
 package = false
