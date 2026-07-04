@@ -30,6 +30,19 @@ def get_args():
         help="Path for the pretrained TalkNet model",
     )
     parser.add_argument(
+        "--asdModel",
+        type=str,
+        default="lightasd",
+        choices=["talknet", "lightasd"],
+        help="Active speaker model: lightasd (default, fast) or talknet",
+    )
+    parser.add_argument(
+        "--lightAsdWeights",
+        type=str,
+        default="./weights/lightasd/pretrain_AVA_CVPR.model",
+        help="Path for the pretrained Light-ASD model",
+    )
+    parser.add_argument(
         "--yoloVariant",
         type=str,
         default="n",

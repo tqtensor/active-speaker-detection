@@ -32,6 +32,11 @@ YOLO_FACE_URLS = {
     "l": "https://github.com/YapaLab/yolo-face/releases/download/1.0.0/yolov11l-face.pt",
 }
 
+LIGHTASD_WEIGHT_URL = (
+    "https://raw.githubusercontent.com/Junhua-Liao/Light-ASD/main/"
+    "weight/pretrain_AVA_CVPR.model"
+)
+
 
 def crop_video_worker(params):
     """Executes crop_video for parallel processing.
@@ -54,30 +59,52 @@ def crop_video_worker(params):
 def download_weights(args):
     """Downloads model weights if not present.
 
-    Downloads TalkNet and YOLO face detection weights from their respective
-    sources. Validates existing YOLO weights by attempting to load them with
-    PyTorch to detect corruption.
+    Downloads TalkNet or Light-ASD (whichever is selected via args.asdModel)
+    and YOLO face detection weights from their respective sources. Validates
+    existing YOLO weights by attempting to load them with PyTorch to detect
+    corruption.
 
     Args:
-        args: Pipeline arguments containing talkNetWeights, yoloFaceWeights,
-            and yoloVariant paths.
+        args: Pipeline arguments containing asdModel, talkNetWeights,
+            lightAsdWeights, yoloFaceWeights, and yoloVariant paths.
 
     Raises:
-        RuntimeError: If YOLO weights download fails or downloaded weights
-            are corrupted.
+        RuntimeError: If YOLO or Light-ASD weights download fails or
+            downloaded weights are corrupted.
     """
-    if not os.path.isfile(args.talkNetWeights):
-        os.makedirs(os.path.dirname(args.talkNetWeights), exist_ok=True)
-        subprocess.run(
+    if args.asdModel == "talknet":
+        if not os.path.isfile(args.talkNetWeights):
+            os.makedirs(os.path.dirname(args.talkNetWeights), exist_ok=True)
+            subprocess.run(
+                [
+                    "gdown",
+                    "--id",
+                    "1OEZiw1mM5Au_46ylcdDBOhClqjY7sH3V",
+                    "-O",
+                    args.talkNetWeights,
+                ],
+                stdout=subprocess.DEVNULL,
+            )
+
+    if args.asdModel == "lightasd" and not os.path.isfile(args.lightAsdWeights):
+        os.makedirs(os.path.dirname(args.lightAsdWeights), exist_ok=True)
+        logger.info(f"Downloading Light-ASD weights from {LIGHTASD_WEIGHT_URL}...")
+        result = subprocess.run(
             [
-                "gdown",
-                "--id",
-                "1OEZiw1mM5Au_46ylcdDBOhClqjY7sH3V",
+                "wget",
+                "-q",
+                "--show-progress",
+                "-L",
+                LIGHTASD_WEIGHT_URL,
                 "-O",
-                args.talkNetWeights,
+                args.lightAsdWeights,
             ],
-            stdout=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
         )
+        if result.returncode != 0:
+            raise RuntimeError(f"Failed to download Light-ASD weights: {result.stderr}")
+        torch.load(args.lightAsdWeights, map_location="cpu")  # validate
 
     # Check if YOLO weights exist and are valid
     need_download = False
