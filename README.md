@@ -67,14 +67,15 @@ uv run python main.py --videoName video --videoFolder workdir --yoloVariant m
 workdir/
 └── video/
     ├── pyavi/                 # extracted audio + output video
-    ├── pyframes/              # all video frames (JPEG format)
-    ├── pycrop/                # cropped face clips
     └── pywork/
         ├── tracks.pckl        # face tracks
         ├── scores.pckl        # speaking scores
         ├── speaker_summary.json    # summary of speaker activity
         └── frame_metadata.json     # frame-centric metadata
 ```
+
+Video frames and face crops are decoded and processed entirely in memory
+(GPU-accelerated) and are never written to disk.
 
 ---
 
@@ -97,10 +98,8 @@ workdir/
 | `--speakerThresh`       | `0.6`     | Speaker detection confidence threshold                                    |
 | `--minSpeechLen`        | `0.25`    | Minimum speech duration (seconds) to count as speaking                    |
 | `--ignoreMultiSpeakers` | `False`   | Skip frames with multiple speakers in visualization                       |
-| `--jpegQscale`          | `2`       | JPEG quality scale for extracted frames (1-31, lower=better)              |
 | `--metadataOnly`        | `False`   | Skip video visualization, only produce JSON metadata                      |
-| `--useBatched`          | `False`   | Use batched TalkNet inference (2-3x faster)                               |
-| `--talknetBatchSize`    | `16`      | Batch size for TalkNet when using `--useBatched`                          |
+| `--talknetBatchSize`    | `16`      | Batch size for GPU-batched TalkNet/Light-ASD inference                    |
 
 ---
 
@@ -123,28 +122,16 @@ For maximum speed on a GPU with 24GB+ VRAM (e.g., L4, A100):
 ```bash
 uv run python main.py --videoName video --videoFolder workdir \
     --yoloBatchSize 128 \
-    --useBatched \
     --talknetBatchSize 32 \
     --metadataOnly
 ```
 
-### Optimization Tiers
-
-| Tier     | Speedup | Command Additions                                 | Best For                |
-| -------- | ------- | ------------------------------------------------- | ----------------------- |
-| Baseline | 1x      | (none)                                            | Debugging, small videos |
-| Fast     | 2-3x    | `--useBatched`                                    | General use             |
-| Faster   | 4-6x    | `--useBatched --yoloBatchSize 64`                 | Production              |
-| Maximum  | 6-10x   | `--useBatched --yoloBatchSize 128 --metadataOnly` | Batch processing        |
-
 ### Key Optimizations
 
-#### 1. Batched TalkNet Inference (`--useBatched`)
-Processes multiple face tracks in parallel instead of sequentially. **Recommended for all use cases.**
-
-```bash
-uv run python main.py --videoName video --videoFolder workdir --useBatched
-```
+#### 1. In-Memory GPU Pipeline
+Frames and face crops are decoded, cropped, and converted to model features
+directly on the GPU in chunks — there is no disk I/O for frames/crops and no
+separate "batched" mode to opt into; batched inference is always used.
 
 #### 2. Increase YOLO Batch Size (`--yoloBatchSize`)
 Higher batch sizes improve GPU utilization for face detection:
@@ -152,8 +139,9 @@ Higher batch sizes improve GPU utilization for face detection:
 - **24GB VRAM**: `--yoloBatchSize 128`
 - **40GB+ VRAM**: `--yoloBatchSize 200`
 
-#### 3. Fast Video Loading
-The pipeline uses PyAV for fast video decoding (faster than OpenCV).
+#### 3. TalkNet/Light-ASD Batch Size (`--talknetBatchSize`)
+Controls how many audio-visual segments are batched per inference call.
+Increase for more GPU utilization, decrease if you hit out-of-memory errors.
 
 #### 4. Metadata-Only Mode (`--metadataOnly`)
 Skip expensive video visualization when only JSON output is needed:
@@ -171,9 +159,8 @@ Choose between speed and accuracy:
 
 ### Troubleshooting Performance
 
-1. **GPU utilization low during TalkNet**: Use `--useBatched` flag
-2. **Out of memory**: Reduce `--yoloBatchSize` and `--talknetBatchSize`
-3. **CPU bottleneck**: Increase `--nDataLoaderThread` (up to CPU core count)
+1. **Out of memory**: Reduce `--yoloBatchSize` and `--talknetBatchSize`
+2. **CPU bottleneck**: Increase `--nDataLoaderThread` (up to CPU core count)
 
 ---
 

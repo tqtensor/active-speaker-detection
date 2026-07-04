@@ -111,26 +111,15 @@ def get_args():
         help="Batch size for YOLO face detection (increase for more GPU utilization)",
     )
     parser.add_argument(
-        "--jpegQscale",
-        type=int,
-        default=2,
-        help="JPEG quality scale for extracted frames (1-31, lower=better quality). Default: 2",
-    )
-    parser.add_argument(
         "--metadataOnly",
         action="store_true",
         help="Skip visualization video, only produce frame_metadata.json and speaker_summary.json",
     )
     parser.add_argument(
-        "--useBatched",
-        action="store_true",
-        help="Use batched TalkNet inference for faster processing (2-3x speedup)",
-    )
-    parser.add_argument(
         "--talknetBatchSize",
         type=int,
         default=16,
-        help="Batch size for TalkNet inference when using --useBatched",
+        help="Batch size for TalkNet/Light-ASD batched inference",
     )
     parser.add_argument(
         "--logLevel",

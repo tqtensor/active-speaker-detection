@@ -4,7 +4,6 @@ import os
 import pickle
 import subprocess
 import warnings
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from shutil import rmtree
 
 import numpy
@@ -17,7 +16,7 @@ from model.talkNet import talkNet
 from model.yoloFace import run_face_detection
 from utils.helpers import export_metadata, summarize_tracks, visualization
 from utils.inference_utils import get_speaker_track_indices
-from utils.track_utils import crop_video, scene_detect, track_shot
+from utils.track_utils import scene_detect, track_shot
 from utils.video_utils import extract_audio, extract_video
 
 warnings.filterwarnings("ignore")
@@ -36,24 +35,6 @@ LIGHTASD_WEIGHT_URL = (
     "https://raw.githubusercontent.com/Junhua-Liao/Light-ASD/main/"
     "weight/pretrain_AVA_CVPR.model"
 )
-
-
-def crop_video_worker(params):
-    """Executes crop_video for parallel processing.
-
-    Worker function that unpacks parameters and calls crop_video. Designed for
-    use with ProcessPoolExecutor to enable parallel face track cropping.
-
-    Args:
-        params: Tuple of (args, track, crop_path) where args contains pipeline
-            configuration, track is the face track dict, and crop_path is the
-            output directory.
-
-    Returns:
-        Result from crop_video function call.
-    """
-    args, track, crop_path = params
-    return crop_video(args, track, crop_path)
 
 
 def download_weights(args):
@@ -161,19 +142,17 @@ def prepare_paths(args):
 
     Args:
         args: Pipeline arguments. Updated in-place with videoPath, savePath,
-            pyaviPath, pyworkPath, and pycropPath attributes.
+            pyaviPath, and pyworkPath attributes.
     """
     args.videoPath = glob.glob(os.path.join(args.videoFolder, args.videoName + ".*"))[0]
     args.savePath = os.path.join(args.videoFolder, args.videoName)
     args.pyaviPath = os.path.join(args.savePath, "pyavi")
     args.pyworkPath = os.path.join(args.savePath, "pywork")
-    args.pycropPath = os.path.join(args.savePath, "pycrop")
 
     if os.path.exists(args.savePath):
         rmtree(args.savePath)
     os.makedirs(args.pyaviPath)
     os.makedirs(args.pyworkPath)
-    os.makedirs(args.pycropPath)
 
 
 def run_asd_inference_gpu(allTracks, args):
@@ -186,7 +165,7 @@ def run_asd_inference_gpu(allTracks, args):
     Args:
         allTracks: List of face track dicts, each containing 'frame' and 'bbox'
             arrays.
-        args: Pipeline arguments containing videoPath, pycropPath, cropScale,
+        args: Pipeline arguments containing videoFilePath, cropScale,
             talkNetWeights, and talknetBatchSize.
 
     Returns:
@@ -214,7 +193,7 @@ def run_asd_inference_gpu(allTracks, args):
     ]
 
     logger.info("[GPU Mode] Chunked video processing...")
-    video_info = get_video_info(args.videoPath)
+    video_info = get_video_info(args.videoFilePath)
     total_frames = video_info["num_frames"]
 
     # Clear GPU cache from previous stages (YOLO, etc.)
@@ -247,7 +226,7 @@ def run_asd_inference_gpu(allTracks, args):
     all_talknet_chunks = {}  # {track_idx: list of (T, 112, 112) tensors}
 
     for chunk_idx, start_frame, frames in tqdm.tqdm(
-        decode_video_chunked(args.videoPath, chunk_size=chunk_size, device_id=0),
+        decode_video_chunked(args.videoFilePath, chunk_size=chunk_size, device_id=0),
         total=num_chunks,
         desc="Decoding chunks",
     ):
@@ -478,61 +457,12 @@ def run_asd_inference_gpu(allTracks, args):
     return vidTracks, all_scores
 
 
-def run_talknet_inference_standard(allTracks, args):
-    """Runs TalkNet inference with standard processing.
-
-    Uses parallel video cropping via ProcessPoolExecutor, then runs TalkNet
-    inference either in batched or sequential mode based on args.useBatched.
-
-    Args:
-        allTracks: List of face track dicts, each containing 'frame' and 'bbox'
-            arrays.
-        args: Pipeline arguments containing pycropPath, nDataLoaderThread,
-            useBatched, and talknetBatchSize.
-
-    Returns:
-        Tuple of (vidTracks, scores) where vidTracks is a list of processed
-        track metadata and scores is a list of active speaker scores for each
-        track.
-    """
-    from utils.inference_utils import evaluate_network, evaluate_network_batched
-
-    # Parallel crop_video processing
-    num_workers = min(args.nDataLoaderThread, len(allTracks))
-    crop_params = [
-        (args, track, os.path.join(args.pycropPath, "%05d" % ii))
-        for ii, track in enumerate(allTracks)
-    ]
-
-    vidTracks = [None] * len(allTracks)
-    with ProcessPoolExecutor(max_workers=num_workers) as executor:
-        future_to_idx = {
-            executor.submit(crop_video_worker, params): idx
-            for idx, params in enumerate(crop_params)
-        }
-        for future in tqdm.tqdm(
-            as_completed(future_to_idx), total=len(allTracks), desc="Cropping"
-        ):
-            idx = future_to_idx[future]
-            vidTracks[idx] = future.result()
-
-    # Run inference
-    files = sorted(glob.glob(f"{args.pycropPath}/*.avi"))
-    if args.useBatched:
-        scores = evaluate_network_batched(files, args, batch_size=args.talknetBatchSize)
-    else:
-        scores = evaluate_network(files, args)
-
-    return vidTracks, scores
-
-
 def main():
     """Runs the active speaker detection pipeline.
 
     Executes the full pipeline including video preprocessing, face detection,
-    face tracking, TalkNet inference, and output generation. Attempts GPU-
-    optimized processing first, falling back to standard mode if GPU operations
-    fail.
+    face tracking, GPU-optimized ASD inference (TalkNet or Light-ASD), and
+    output generation.
     """
     args = get_args()
 
@@ -585,8 +515,8 @@ def main():
     torch.cuda.empty_cache()
     torch.cuda.synchronize()
 
-    # Step 4: TalkNet inference (choose GPU or standard mode)
-    logger.info("[4/5] Running TalkNet inference...")
+    # Step 4: ASD inference (GPU-optimized, model chosen via --asdModel)
+    logger.info(f"[4/5] Running {args.asdModel} inference...")
     vidTracks, scores = run_asd_inference_gpu(allTracks, args)
 
     # Save results
