@@ -14,9 +14,11 @@ def _prep_video(tmp_path):
     from utils.video_utils import extract_audio, extract_video
 
     os.makedirs(tmp_path / "pyavi", exist_ok=True)
+    os.makedirs(tmp_path / "pywork", exist_ok=True)
     args = types.SimpleNamespace(
         videoPath=FIXTURE,
         pyaviPath=str(tmp_path / "pyavi"),
+        pyworkPath=str(tmp_path / "pywork"),
         duration=0,
         start=0,
         nDataLoaderThread=2,

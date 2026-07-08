@@ -121,3 +121,6 @@ venv.bak/
 
 # Light-ASD weights are auto-downloaded by download_weights (do not commit the binary)
 weights/lightasd/
+
+# Superpowers
+docs/superpowers/
