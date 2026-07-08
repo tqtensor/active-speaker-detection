@@ -1,9 +1,9 @@
 import glob
+import json
 import math
 import os
 import pickle
 import subprocess
-import time
 import warnings
 from shutil import rmtree
 
@@ -15,8 +15,10 @@ from config.args import get_args
 from config.logging_config import get_logger, log_section, setup_logging
 from model.talkNet import talkNet
 from model.yoloFace import run_face_detection
+from utils.gpu_video import get_video_info
 from utils.helpers import export_metadata, summarize_tracks, visualization
 from utils.inference_utils import get_speaker_track_indices
+from utils.profiling import Profiler, build_timing_report
 from utils.track_utils import scene_detect, track_shot
 from utils.video_utils import extract_audio, extract_video
 
@@ -479,44 +481,45 @@ def main():
             logger.warning(f"Could not clear GPU cache ({e})")
             logger.warning("Try running: pkill -9 python && nvidia-smi")
 
+    profiler = Profiler()
+
     # Step 1: Preprocess
     logger.info("[1/5] Preprocessing video...")
-    t = time.perf_counter()
-    extract_video(args)
-    extract_audio(args)
-    logger.info(f"[timing] preprocess {time.perf_counter() - t:.1f}s")
+    with profiler.stage("preprocess"):
+        extract_video(args)
+        extract_audio(args)
 
     # Step 2: Face detection
     logger.info("[2/5] Detecting faces...")
-    t = time.perf_counter()
-    scene = scene_detect(args)
-    faces = run_face_detection(args, batch_size=args.yoloBatchSize)
-    logger.info(f"[timing] detect {time.perf_counter() - t:.1f}s")
+    with profiler.stage("scene"):
+        scene = scene_detect(args)
+    with profiler.stage("detect"):
+        faces = run_face_detection(args, batch_size=args.yoloBatchSize)
 
     # Step 3: Face tracking
     logger.info("[3/5] Tracking faces...")
-    allTracks = []
-    for shot in scene:
-        if shot[1].frame_num - shot[0].frame_num >= args.minTrack:
-            allTracks.extend(
-                track_shot(args, faces[shot[0].frame_num : shot[1].frame_num])
-            )
+    with profiler.stage("track"):
+        allTracks = []
+        for shot in scene:
+            if shot[1].frame_num - shot[0].frame_num >= args.minTrack:
+                allTracks.extend(
+                    track_shot(args, faces[shot[0].frame_num : shot[1].frame_num])
+                )
     logger.info(f"Found {len(allTracks)} face tracks")
 
     if not allTracks:
         logger.error("No face tracks found!")
         return
 
-    # Clean up GPU memory from YOLO before TalkNet
+    # Clean up GPU memory from YOLO before ASD
     logger.info("Clearing GPU memory from face detection...")
     torch.cuda.empty_cache()
     torch.cuda.synchronize()
 
     # Step 4: ASD inference (GPU-optimized, model chosen via --asdModel)
     logger.info(f"[4/5] Running {args.asdModel} inference...")
-    t = time.perf_counter()
-    vidTracks, scores = run_asd_inference_gpu(allTracks, args)
-    logger.info(f"[timing] asd {time.perf_counter() - t:.1f}s")
+    with profiler.stage("asd"):
+        vidTracks, scores = run_asd_inference_gpu(allTracks, args)
 
     # Save results
     with open(os.path.join(args.pyworkPath, "tracks.pckl"), "wb") as f:
@@ -528,11 +531,26 @@ def main():
     logger.info("[5/5] Generating output...")
     speaker_track_indices = get_speaker_track_indices(scores, args)
 
-    if not args.metadataOnly:
-        visualization(vidTracks, scores, args, speaker_track_indices)
+    with profiler.stage("output"):
+        if not args.metadataOnly:
+            visualization(vidTracks, scores, args, speaker_track_indices)
+        summarize_tracks(vidTracks, scores, args, speaker_track_indices)
+        export_metadata(vidTracks, scores, args, speaker_track_indices)
 
-    summarize_tracks(vidTracks, scores, args, speaker_track_indices)
-    export_metadata(vidTracks, scores, args, speaker_track_indices)
+    # Persist per-stage timing report for the benchmark + regression tests.
+    total_frames = get_video_info(args.videoFilePath)["num_frames"]
+    report = build_timing_report(
+        profiler.timings, profiler.peak_mem, total_frames, fps=25
+    )
+    report["asd_model"] = args.asdModel
+    with open(os.path.join(args.pyworkPath, "timings.json"), "w") as f:
+        json.dump(report, f, indent=2)
+    logger.info(
+        f"[timing] total {report['total_seconds']}s "
+        f"({report['end_to_end_xrealtime']}x realtime); "
+        f"asd {report['stages']['asd']['seconds']}s "
+        f"({report['stages']['asd']['pct_of_total']}% of total)"
+    )
 
     log_section(logger, "PIPELINE COMPLETE")
 
