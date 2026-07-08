@@ -27,8 +27,7 @@ def test_build_timing_report_pct_and_xrealtime():
 
 def test_aggregate_runs_median_min():
     reports = [
-        build_timing_report({"a": s}, {"a": 0}, 100, 25)
-        for s in (2.0, 4.0, 6.0)
+        build_timing_report({"a": s}, {"a": 0}, 100, 25) for s in (2.0, 4.0, 6.0)
     ]
     agg = aggregate_runs(reports)
     assert agg["n"] == 3

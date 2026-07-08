@@ -11,6 +11,7 @@ score offset (measured 0.341 — below chance — because it captures the offset
 gap, not who is speaking), so it is recorded for information only, never
 asserted.
 """
+
 import os
 import pickle
 import subprocess
@@ -38,9 +39,17 @@ pytestmark = pytest.mark.skipif(not CUDA, reason="needs CUDA")
 def _run(model):
     subprocess.run(
         [
-            "uv", "run", "python", "main.py",
-            "--videoName", "sample", "--videoFolder", FIX,
-            "--asdModel", model, "--metadataOnly",
+            "uv",
+            "run",
+            "python",
+            "main.py",
+            "--videoName",
+            "sample",
+            "--videoFolder",
+            FIX,
+            "--asdModel",
+            model,
+            "--metadataOnly",
         ],
         check=True,
     )

@@ -19,7 +19,10 @@ def _two_tracks():
 def test_argmax_agreement_multi_face():
     tracks = _two_tracks()
     a = [[2.0, 2.0], [1.0, 1.0]]  # both frames: track 0 is top
-    b = [[0.5, 0.0], [0.1, 1.0]]  # frame0: track0 top (agree); frame1: track1 top (disagree)
+    b = [
+        [0.5, 0.0],
+        [0.1, 1.0],
+    ]  # frame0: track0 top (agree); frame1: track1 top (disagree)
     assert argmax_agreement(tracks, a, b) == 0.5
 
 

@@ -182,10 +182,7 @@ def run_asd_inference_gpu(allTracks, args):
         slice_track_mfcc,
     )
     from utils.gpu_crop import crop_faces_gpu, extract_talknet_features_gpu
-    from utils.gpu_video import (
-        decode_video_chunked,
-        get_video_info,
-    )
+    from utils.gpu_video import decode_video_chunked
 
     # One MFCC for the whole clip; sliced per track below (no per-track wav I/O).
     global_mfcc = compute_global_mfcc(args.audioFilePath)

@@ -5,6 +5,7 @@ Usage:
         --videoName sample --videoFolder tests/fixtures \
         --models talknet lightasd --runs 5 --warmup 1
 """
+
 import argparse
 import json
 import os
@@ -28,9 +29,17 @@ logger = get_logger(__name__)
 def _run_once(video_name, video_folder, model):
     subprocess.run(
         [
-            "uv", "run", "python", "main.py",
-            "--videoName", video_name, "--videoFolder", video_folder,
-            "--asdModel", model, "--metadataOnly",
+            "uv",
+            "run",
+            "python",
+            "main.py",
+            "--videoName",
+            video_name,
+            "--videoFolder",
+            video_folder,
+            "--asdModel",
+            model,
+            "--metadataOnly",
         ],
         check=True,
     )

@@ -12,6 +12,7 @@ Capture / refresh the baseline on a GPU box:
     L=$(python -c "import json;print(json.load(open('tests/fixtures/sample/pywork/timings.json'))['stages']['asd']['seconds'])")
     python -c "import json;json.dump({'asd_ratio_talknet_over_lightasd': $T/$L}, open('tests/fixtures/speed_baseline.json','w'))"
 """
+
 import json
 import os
 import subprocess
@@ -35,9 +36,17 @@ pytestmark = pytest.mark.skipif(not CUDA, reason="needs CUDA")
 def _asd_seconds(model):
     subprocess.run(
         [
-            "uv", "run", "python", "main.py",
-            "--videoName", "sample", "--videoFolder", FIX,
-            "--asdModel", model, "--metadataOnly",
+            "uv",
+            "run",
+            "python",
+            "main.py",
+            "--videoName",
+            "sample",
+            "--videoFolder",
+            FIX,
+            "--asdModel",
+            model,
+            "--metadataOnly",
         ],
         check=True,
     )

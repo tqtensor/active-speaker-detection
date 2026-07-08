@@ -32,6 +32,8 @@ def ensure_sample(path=SAMPLE_PATH, url=SAMPLE_URL):
         shutil.copyfileobj(resp, f)
     if os.path.getsize(tmp) < _MIN_BYTES:
         os.remove(tmp)
-        raise RuntimeError(f"downloaded fixture from {url} too small (<{_MIN_BYTES} bytes)")
+        raise RuntimeError(
+            f"downloaded fixture from {url} too small (<{_MIN_BYTES} bytes)"
+        )
     os.replace(tmp, path)
     return path
