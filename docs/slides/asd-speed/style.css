@@ -1,0 +1,52 @@
+/* ============================================================
+   pixelml SLIDEV THEME — Root config & global base
+   Brand component styles live in pixelml-brand.css (imported below).
+
+   60 / 30 / 10 color rule
+   ─────────────────────────
+   60%  White canvas  #FFFFFF
+   30%  Brandbox      linear-gradient(135deg, #E5556E 0%, #773FB4 50%, #0A2AFA 100%)
+   10%  Accent Purple #773FB4 / #5B2E8C  (small marks only)
+
+   Color source: pixelml short logo (assets/pixelml-short-logo.png)
+   brand.pixelml.com/document/73/en#/corporate-identity/colour
+   ============================================================ */
+
+/* ---- pixelml brand component styles (must precede all rules) ---- */
+@import "./pixelml-brand.css";
+
+/* ---- CSS custom properties ---- */
+:root {
+  /* Canvas */
+  --pixelml-white: #ffffff;
+
+  /* Brandbox gradient — primary identity element (~30%) */
+  --pixelml-rose: #e5556e; /* Rose — gradient start (logo top-left)          */
+  --pixelml-purple-mid: #773fb4; /* Purple — gradient midpoint (logo center) */
+  --pixelml-blue: #0a2afa; /* Blue — gradient end (logo bottom-right)        */
+  --pixelml-gradient: linear-gradient(135deg, #e5556e 0%, #773fb4 50%, #0a2afa 100%);
+
+  /* Text */
+  --pixelml-black: #2f2d2d; /* Deep Grey 900 — body text                      */
+  --pixelml-dark-red: #d21242; /* pixelml Dark Red — text emphasis on white        */
+
+  /* Accent Purple — 10% max, CTA / activation / small marks only */
+  --pixelml-accent-dark: #5b2e8c; /* Accent Purple 800 — borders, icons, small dots  */
+  --pixelml-accent: #773fb4; /* Accent Purple 700 — borders, small accents      */
+  --pixelml-accent-light: #ede7f6; /* Accent Purple 100 — light tint for callout cards */
+
+  /* Tertiary — data visualization only */
+  --pixelml-yellow: #ffd87d; /* Ochre 300                                      */
+  --pixelml-teal: #0096aa; /* Blue 600                                       */
+  --pixelml-purple: #7277ff; /* Purple 600                                     */
+  --pixelml-sky: #7de7ee; /* Blue 300                                       */
+
+  --slidev-theme-primary: #773fb4;
+}
+
+/* ---- Global base ---- */
+.slidev-layout {
+  font-family: "Verdana", "Geneva", sans-serif;
+  color: var(--pixelml-black);
+  background: var(--pixelml-white);
+}

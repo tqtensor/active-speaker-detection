@@ -124,3 +124,6 @@ weights/lightasd/
 
 # Superpowers
 docs/superpowers/
+
+# node_modules
+node_modules/
