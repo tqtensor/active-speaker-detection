@@ -85,6 +85,34 @@ So of detect's 151 s, roughly **30 s is decode and ~121 s is YOLO forward + the
 far below the several-hundred fps the model is capable of — the gap is the per-frame
 CPU roundtrip and Python dispatch, not the network.
 
+### 2a. The YOLO forward is already batched — and that's *why* batching didn't help
+
+`run_face_detection` already passes a list of 32 frames to `model.predict`
+(`model/yoloFace.py:52-54`), so the GPU **forward pass is batched.** This is the trap:
+batching accelerated the one stage that was never the bottleneck. A nano-model forward
+on a batch of 32 finishes in milliseconds. The 50 minutes is everything that happens
+*around* the forward, still per-frame and still on the CPU:
+
+| Per-frame work in detect                                                                       | Batched?       | On GPU?           |
+| ---------------------------------------------------------------------------------------------- | -------------- | ----------------- |
+| decode (PyAV, single-thread)                                                                   | no             | no                |
+| `.cpu().numpy()` roundtrip                                                                     | chunk-level    | pulls **off** GPU |
+| `[:, :, ::-1]` BGR copy                                                                        | no             | no                |
+| **Ultralytics preprocessing** — letterbox-resize each full-res frame → 640, HWC→CHW, normalize | CPU, per-image | no                |
+| **NMS postprocess**                                                                            | CPU, per-image | no                |
+| GPU forward                                                                                    | ✅ yes          | ✅ yes             |
+
+**The proof it didn't help is `sm 0` (§4).** If the batched forward were the cost, GPU
+compute would spike during detect; instead it stays at zero — the GPU is *waiting*
+between batches while the CPU decodes, copies, letterboxes, and runs NMS. Batching a
+stage the GPU finishes in milliseconds cannot move a wall that lives on the CPU.
+
+Consequence for the fix order: **only striding cuts the per-frame CPU work** (fewer
+decodes, letterboxes, NMS calls); **downscale** shrinks each of those operations; and
+**feeding `model.predict` an already-resized CUDA tensor** makes Ultralytics skip the
+CPU letterbox/preprocess entirely and keeps the frame on-device. Increasing
+`--yoloBatchSize` further does essentially nothing.
+
 ### 3. The `asd` stage is mostly a second decode
 
 From the logs, the 39.7 s asd stage is **~30 s decode+crop + ~9 s model forward.**
