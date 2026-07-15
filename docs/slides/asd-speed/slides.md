@@ -130,54 +130,36 @@ zoom: 0.86
 
 # What each stage actually does
 
-| # | Stage | Job | Cost driver |
-|---|-------|-----|-------------|
-| 1 | **Preprocess** | ffmpeg re-encodes source to a uniform AVI | Full re-encode, superlinear on length |
-| 2 | **Scene detect** | PySceneDetect finds hard cuts (shot boundaries) | One decode pass |
-| 3 | **Detect** | YOLOv11-face finds face boxes, **every frame** | Decode + per-frame CPU prep → **the wall** |
-| 4 | **Track** | IOU matching links boxes into face tracks; interpolates gaps | Trivial (0.5 s) |
-| 5 | **ASD inference** | Crop each tracked face, run **Light-ASD** on crop + audio | A *second* full decode, then the model |
-| 6 | **Output** | Emit who-speaks-when timeline | Trivial |
+| #   | Stage             | Job                                                          | Cost driver                                |
+| --- | ----------------- | ------------------------------------------------------------ | ------------------------------------------ |
+| 1   | **Preprocess**    | ffmpeg re-encodes source to a uniform AVI                    | Full re-encode, superlinear on length      |
+| 2   | **Scene detect**  | PySceneDetect finds hard cuts (shot boundaries)              | One decode pass                            |
+| 3   | **Detect**        | YOLOv11-face finds face boxes, **every frame**               | Decode + per-frame CPU prep → **the wall** |
+| 4   | **Track**         | IOU matching links boxes into face tracks; interpolates gaps | Trivial (0.5 s)                            |
+| 5   | **ASD inference** | Crop each tracked face, run **Light-ASD** on crop + audio    | A *second* full decode, then the model     |
+| 6   | **Output**        | Emit who-speaks-when timeline                                | Trivial                                    |
 
 <div class="pixelml-card-emphasis" style="margin-top:0.7rem;font-size:0.84rem;">
 Note stages 2, 3, and 5 each <strong>decode the whole video again</strong>. The video is read start-to-finish <strong>4–5 times</strong> across one run.
 </div>
 
 ---
-zoom: 0.86
+zoom: 0.8
 ---
 
 # Inside the Detect stage (the 68%)
 
-<div class="two-col">
-<div>
-
-<p style="font-size:0.84rem;">Per frame, the loop does this:</p>
-
-<div class="timeline-step"><div class="dot"></div><div style="font-size:0.82rem;"><strong>Decode</strong> the frame — pure CPU PyAV, one core pinned</div></div>
-<div class="timeline-step"><div class="dot"></div><div style="font-size:0.82rem;"><strong>Roundtrip</strong> <code>.cpu().numpy()</code> + BGR flip <code>[:, :, ::-1]</code></div></div>
-<div class="timeline-step"><div class="dot"></div><div style="font-size:0.82rem;"><strong>Letterbox</strong> resize to 640 — Ultralytics, on CPU</div></div>
-<div class="timeline-step"><div class="dot"></div><div style="font-size:0.82rem;"><strong>YOLO forward</strong> — the only GPU step (already batched)</div></div>
-<div class="timeline-step"><div class="dot"></div><div style="font-size:0.82rem;"><strong>NMS</strong> postprocess boxes — back on CPU</div></div>
-
-</div>
-<div>
-
-<div class="pixelml-card">
-<div class="pixelml-pill">Per nano frame</div>
-<p style="font-size:0.84rem;margin-top:0.35rem;">~19.7 ms — and almost all of it is the CPU steps <strong>around</strong> the forward, not the forward itself.</p>
+<div style="display:flex; justify-content:center; margin-top:0.2rem;">
+  <img src="/images/detect-roundtrip.png" style="width:70%; border-radius:8px; box-shadow:0 1px 8px rgba(0,0,0,0.12);" />
 </div>
 
-<div class="stat-box" style="margin-top:0.7rem;">
-<span class="value">4 of 5</span>
-<span class="label">steps run on CPU, per frame</span>
-</div>
-
-</div>
+<div class="pixelml-card-emphasis" style="margin-top:0.4rem; font-size:0.8rem;">
+The one GPU box sits alone in an idle lane while every other step stacks on the CPU. That picture <strong>is</strong> the bottleneck — the roundtrip, not the math.
 </div>
 
 <!--
 Key teaching moment: the GPU forward is one line in a five-line loop, and it's the only line the GPU touches.
+Walk left-to-right, then point at the two red crossing arrows: that's where the video's minutes go.
 -->
 
 ---
@@ -207,13 +189,13 @@ zoom: 0.86
   <div class="stat-box" style="flex:1;"><span class="value">553</span><span class="label">face tracks</span></div>
 </div>
 
-| Stage | Time | Share | Note |
-|-------|------|-------|------|
-| **Detect** | **4025.8 s** | **68.1%** | 38.1 fps — the whole game |
-| ASD inference | 1185.3 s | 20.1% | ~1012 s is a *second* decode; model itself ~152 s |
-| Preprocess | 424.8 s | 7.2% | ffmpeg re-encode (7m22s) |
-| Scene detect | 264.7 s | 4.5% | 369 scenes |
-| Track / Output | ~10 s | 0.2% | negligible |
+| Stage          | Time         | Share     | Note                                              |
+| -------------- | ------------ | --------- | ------------------------------------------------- |
+| **Detect**     | **4025.8 s** | **68.1%** | 38.1 fps — the whole game                         |
+| ASD inference  | 1185.3 s     | 20.1%     | ~1012 s is a *second* decode; model itself ~152 s |
+| Preprocess     | 424.8 s      | 7.2%      | ffmpeg re-encode (7m22s)                          |
+| Scene detect   | 264.7 s      | 4.5%      | 369 scenes                                        |
+| Track / Output | ~10 s        | 0.2%      | negligible                                        |
 
 <div class="pixelml-card-emphasis" style="margin-top:0.6rem;font-size:0.84rem;">
 The <strong>model</strong> — the part everyone worries about — is <strong>2.6% of total time</strong>.
@@ -264,11 +246,11 @@ zoom: 0.9
 
 # Three myths to retire on Friday
 
-| Belief | Verdict | The number |
-|--------|---------|-----------|
-| "TalkNet / Light-ASD fusion is the bottleneck" | ❌ **False** | Model is **~2.6%** of total |
-| "A bigger GPU will fix it" | ❌ **False** | GPU is **0%** busy during the 35-min Detect |
-| "The read is the bottleneck" | ✅ **True** | Decode + CPU roundtrip **dominate** |
+| Belief                                         | Verdict     | The number                                  |
+| ---------------------------------------------- | ----------- | ------------------------------------------- |
+| "TalkNet / Light-ASD fusion is the bottleneck" | ❌ **False** | Model is **~2.6%** of total                 |
+| "A bigger GPU will fix it"                     | ❌ **False** | GPU is **0%** busy during the 35-min Detect |
+| "The read is the bottleneck"                   | ✅ **True**  | Decode + CPU roundtrip **dominate**         |
 
 <div class="two-col" style="margin-top:0.9rem;">
 <div>
@@ -375,14 +357,14 @@ zoom: 0.84
 
 # Fix roadmap
 
-| # | Fix | What it does | Status |
-|---|-----|--------------|--------|
-| 1 | **Strided detection** | Run YOLO every ~10th frame; `track_shot` already interpolates gaps; scene cuts anchor re-detection | Designed, **never shipped** |
-| 2 | **Downscale-on-decode** | Feed detection-resolution frames, not full HD — biggest HD lever | `facedetScale` **unused** |
-| 3 | **True NVDEC + GPU tensors** | Kill the `.cpu().numpy()` roundtrip; hand YOLO GPU-resident frames | Lights up `dec`, frees the CPU core |
-| 4 | **Drop the ffmpeg re-encode** | Decode source directly; normalize fps only if needed | Removes 7m22s + faster decodes |
-| 5 | **Decode once, reuse** | One GPU-resident pass feeds detect + crop + scene | Kills taxes 1 &amp; 2 |
-| 6 | **Shrink ASD compute** | `durationSet [1..6]` → `[1,2]` | Optional; it's only ~3% |
+| #   | Fix                           | What it does                                                                                       | Status                              |
+| --- | ----------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| 1   | **Strided detection**         | Run YOLO every ~10th frame; `track_shot` already interpolates gaps; scene cuts anchor re-detection | Designed, **never shipped**         |
+| 2   | **Downscale-on-decode**       | Feed detection-resolution frames, not full HD — biggest HD lever                                   | `facedetScale` **unused**           |
+| 3   | **True NVDEC + GPU tensors**  | Kill the `.cpu().numpy()` roundtrip; hand YOLO GPU-resident frames                                 | Lights up `dec`, frees the CPU core |
+| 4   | **Drop the ffmpeg re-encode** | Decode source directly; normalize fps only if needed                                               | Removes 7m22s + faster decodes      |
+| 5   | **Decode once, reuse**        | One GPU-resident pass feeds detect + crop + scene                                                  | Kills taxes 1 &amp; 2               |
+| 6   | **Shrink ASD compute**        | `durationSet [1..6]` → `[1,2]`                                                                     | Optional; it's only ~3%             |
 
 <div class="pixelml-card-emphasis" style="margin-top:0.55rem;font-size:0.83rem;">
 No single fix reaches 12×. Striding alone ≈ 2×. The target needs the <strong>full stack</strong> — striding <em>and</em> downscale <em>and</em> the GPU decode path.
